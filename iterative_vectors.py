@@ -40,6 +40,8 @@ with open('data/fairytales_word_bloom-filters.json', 'r') as f:
 with open('data/fairytales_tokenized.json', 'r') as f:
     tokenized_corpus = json.load(f)
 
+iterative_vectors = {}
+
 def rescale_bloom_filter(): # Rescales bloom filters to be in range [-1, 1] instead of [0, 1]
     for word in bloom_filters.keys():
         bloom_filters[word] = np.array(bloom_filters[word], dtype=int) * 2 - 1
