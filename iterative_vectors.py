@@ -75,11 +75,14 @@ def generate_vector(word, tokenized_sentence, bits, deltas, iteration):
                     tf_idf = tf_idfs[word][adjacent_word]
                 except KeyError:
                     tf_idf = 0
-                if iteration: # if this is not the first iteration, we use the preassigned iterative vectors for the adjacent word.
-                    instance_representation += np.array(preassign_iterative_vectors[adjacent_word]) * tf_idf
-                else:
-                    instance_representation += np.array(bloom_filters[adjacent_word]) * tf_idf
-                adjacent_words += 1
+                try: # if the neighbor word doesn't have a representation on file, skip it
+                    if iteration: # if this is not the first iteration, we use the preassigned iterative vectors for the adjacent word.
+                        instance_representation += np.array(preassign_iterative_vectors[adjacent_word]) * tf_idf
+                    else:
+                        instance_representation += np.array(bloom_filters[adjacent_word]) * tf_idf
+                    adjacent_words += 1
+                except KeyError:
+                    continue
     return instance_representation, adjacent_words
 
 def extract_vectors(word, iteration, deltas=None, bits=32):
@@ -103,6 +106,8 @@ def extract_vectors(word, iteration, deltas=None, bits=32):
             representation, adjacent_words = generate_vector(word, sentence, bits, deltas, iteration)
             representations += representation # the representation accumulates to be the sum of all the neighbor representations.
             total_adjacent_words += adjacent_words # the count of neighbors accumulates
+    if total_adjacent_words == 0:
+        return representations  # return zeros if no neighbors found
     return representations / total_adjacent_words # we take the average of all neighbors by dividing the sum of their represntations by the count of neighbors.
 
 def update_encoding(word, iteration, args):
@@ -122,7 +127,9 @@ def normalize_vector_dimensions(iterative_vectors):
     """
     vectors = np.array(list(iterative_vectors.values())) # convert to np array for speed
     vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True) # normalize along rows (words)
+    vectors = np.nan_to_num(vectors, 0)  # replace NaN with 0
     vectors = (vectors - np.median(vectors,0)) / scipy.stats.iqr(vectors,0) # normalize along columns (dimensions)
+    vectors = np.nan_to_num(vectors, 0)  # replace NaN with 0
     return { # convert back to dictionary
         word: list(vectors[i]) for i, word in enumerate(iterative_vectors.keys())
     }
@@ -134,12 +141,24 @@ def sigmoid_normalize_vectors():
         iterative_vectors[word] = list(2 / (1 + np.exp(-iterative_vectors[word])) - 1) # sigmoid function + scale to pos/neg
 
 if __name__ == '__main__':
+    import os
     ITERATIONS = 400 # some amount of iterations, around 200 should be sufficient currently to observe the periodicity.
+
+    # Create deltas from -x to x excluding 0
+    x = 6
+    deltas = []
+    for i in range(1, x):
+        deltas.append(-i)
+        deltas.append(i)
+
+    # Create output directory if it doesn't exist
+    os.makedirs('data/iterative_vectors', exist_ok=True)
+
     rescale_bloom_filter()
     for i in range(ITERATIONS):
         preassign_iterative_vectors = copy.deepcopy(iterative_vectors)
         for word in tqdm(list(tf_idfs.keys()), desc=f"Iteration {i}/{ITERATIONS}", dynamic_ncols=True, leave=True, file=sys.stdout, ascii=True): # tqdm just gives fancy progress bar
-            update_encoding(word, i, {'deltas': [-4, -3, -2, -1, 1, 2, 3, 4], 'bits':32})
+            update_encoding(word, i, {'deltas': deltas, 'bits':32})
         iterative_vectors = normalize_vector_dimensions(iterative_vectors)
         with open(f'data/iterative_vectors/{i}.json', 'w+') as f:
             json.dump(iterative_vectors, f, indent=4) # saves file for each iteration for future reference
