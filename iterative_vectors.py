@@ -110,6 +110,7 @@ def extract_vectors(word, iteration, deltas=None, bits=32):
         return representations  # return zeros if no neighbors found
     return representations / total_adjacent_words # we take the average of all neighbors by dividing the sum of their represntations by the count of neighbors.
 
+
 def update_encoding(word, iteration, args):
     """Replaces the previous vector representation of word in iterative_vectors with the new one.
     """
@@ -125,14 +126,23 @@ def normalize_vector():
 def normalize_vector_dimensions(iterative_vectors):
     """Normalizes vector dimensions by (1) normalizing the length of each vector to 1 and (2) normalizing vectors along the dimensions (columns) using Robust Scaling to ignore outliers while simultaneously adjusting the scale of each dimension.
     """
-    vectors = np.array(list(iterative_vectors.values())) # convert to np array for speed
-    vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True) # normalize along rows (words)
-    vectors = np.nan_to_num(vectors, 0)  # replace NaN with 0
-    vectors = (vectors - np.median(vectors,0)) / scipy.stats.iqr(vectors,0) # normalize along columns (dimensions)
-    vectors = np.nan_to_num(vectors, 0)  # replace NaN with 0
-    return { # convert back to dictionary
+    vectors = np.array(list(iterative_vectors.values()))
+
+    # Row normalization
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    vectors = vectors / norms
+
+    # Column normalization (robust scaling)
+    med = np.median(vectors, axis=0)
+    iqr = scipy.stats.iqr(vectors, axis=0)
+    iqr[iqr == 0] = 1
+    vectors = (vectors - med) / iqr
+
+    return {
         word: list(vectors[i]) for i, word in enumerate(iterative_vectors.keys())
     }
+
 
 def sigmoid_normalize_vectors():
     """Not used in current implementation.
