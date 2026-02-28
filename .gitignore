@@ -9,11 +9,9 @@
 data/fairy_tales
 data/iterative_vectors/
 data/iterative_vectors_dropped_tf-idfs/
-data/n_neighbors.json
-data/neighbor_frequencies.json
-data/kqmw_iteration.json
-data/kqmw_iterations
+
 
 # Misc.
 notes.txt
 venv/Lib/site-packages/
+
