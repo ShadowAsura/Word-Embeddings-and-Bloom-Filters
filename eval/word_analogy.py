@@ -9,7 +9,8 @@ import os
 def generate():
     parser = argparse.ArgumentParser()
     parser.add_argument('--window', default=6, type=int, help='Window size for embeddings')
-    parser.add_argument('--iteration', default=399, type=int, help='Iteration number to load')
+    iteration = 2 # We load the latest iteration generated
+    parser.add_argument('--iteration', default=iteration, type=int, help='Iteration number to load')
     parser.add_argument('--vector_dir', default=None, type=str, help='Directory containing vector files')
     args = parser.parse_args()
 
@@ -24,7 +25,7 @@ def generate():
             raise FileNotFoundError("Could not find data/iterative_vectors directory. Try running from workspace root or eval/")
     
     # Load vectors from JSON
-    vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}.json')
+    vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}_v3_200bit.json')
     
     if not os.path.exists(vector_file):
         raise FileNotFoundError(f"Vector file not found: {vector_file}")
@@ -95,10 +96,5 @@ def distance(W, vocab, ivocab, input_term):
 if __name__ == "__main__":
     N = 100;          # number of closest words that will be shown
     W, vocab, ivocab = generate()
-    while True:
-        input_term = input("\nEnter three words (EXIT to break): ")
-        if input_term == 'EXIT':
-            break
-        else:
-            distance(W, vocab, ivocab, input_term)
+    distance(W, vocab, ivocab, "king man queen")
 

@@ -35,7 +35,7 @@ en_stopwords = set(stopwords.words('english'))
 
 with open('data/fairytales_word_tf-idfs.json', 'r') as f:
     tf_idfs = json.load(f)
-with open('data/fairytales_word_bloom-filters.json', 'r') as f:
+with open('data/fairytales_word_bloom-filters_200bit.json', 'r') as f:
     bloom_filters = json.load(f)
 with open('data/fairytales_tokenized.json', 'r') as f:
     tokenized_corpus = json.load(f)
@@ -46,7 +46,7 @@ def rescale_bloom_filter(): # Rescales bloom filters to be in range [-1, 1] inst
     for word in bloom_filters.keys():
         bloom_filters[word] = np.array(bloom_filters[word], dtype=int) * 2 - 1
 
-def generate_vector(word, tokenized_sentence, bits, deltas, iteration):
+def generate_vector(word, tokenized_sentence, bits, deltas, iteration, preassigned_vectors):
     """ 
     Generates vector representation for word when given a sentence.
     
@@ -85,7 +85,7 @@ def generate_vector(word, tokenized_sentence, bits, deltas, iteration):
                     continue
     return instance_representation, adjacent_words
 
-def extract_vectors(word, iteration, deltas=None, bits=32):
+def extract_vectors(word, iteration, preassigned_vectors, deltas=None, bits=32):
     """ 
         Extracts the vector representation of a word.
         
@@ -103,7 +103,7 @@ def extract_vectors(word, iteration, deltas=None, bits=32):
 
     for sentence in tokenized_corpus:
         if word in sentence: # if the word is in the sentence, we pass it to the generate_vector function.
-            representation, adjacent_words = generate_vector(word, sentence, bits, deltas, iteration)
+            representation, adjacent_words = generate_vector(word, sentence, bits, deltas, iteration, preassigned_vectors)
             representations += representation # the representation accumulates to be the sum of all the neighbor representations.
             total_adjacent_words += adjacent_words # the count of neighbors accumulates
     if total_adjacent_words == 0:
@@ -111,10 +111,10 @@ def extract_vectors(word, iteration, deltas=None, bits=32):
     return representations / total_adjacent_words # we take the average of all neighbors by dividing the sum of their represntations by the count of neighbors.
 
 
-def update_encoding(word, iteration, args):
+def update_encoding(word, iteration, args, preassigned_vectors):
     """Replaces the previous vector representation of word in iterative_vectors with the new one.
     """
-    vector = extract_vectors(word, iteration, **args)
+    vector = extract_vectors(word, iteration, preassigned_vectors, **args)
     iterative_vectors[word] = vector
 
 def normalize_vector():
@@ -152,7 +152,7 @@ def sigmoid_normalize_vectors():
 
 if __name__ == '__main__':
     import os
-    ITERATIONS = 400 # some amount of iterations, around 200 should be sufficient currently to observe the periodicity.
+    ITERATIONS = 3 # some amount of iterations, around 200 should be sufficient currently to observe the periodicity.
     NEIGHBORHOOD_SIZE = 4 # number of words to the left and right to consider as neighbors
     # Create deltas from -x to x excluding 0
     x = NEIGHBORHOOD_SIZE
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     for i in range(ITERATIONS):
         preassign_iterative_vectors = copy.deepcopy(iterative_vectors)
         for word in tqdm(list(tf_idfs.keys()), desc=f"Iteration {i}/{ITERATIONS}", dynamic_ncols=True, leave=True, file=sys.stdout, ascii=True): # tqdm just gives fancy progress bar
-            update_encoding(word, i, {'deltas': deltas, 'bits':32})
+            update_encoding(word, i, {'deltas': deltas, 'bits':200}, preassign_iterative_vectors)
         iterative_vectors = normalize_vector_dimensions(iterative_vectors)
-        with open(f'data/iterative_vectors/window_{NEIGHBORHOOD_SIZE}_iter_{i}.json', 'w+') as f:
+        with open(f'data/iterative_vectors/cpu_200bit_window_{NEIGHBORHOOD_SIZE}_iter_{i}.json', 'w+') as f:
             json.dump(iterative_vectors, f, indent=4) # saves file for each iteration for future reference
