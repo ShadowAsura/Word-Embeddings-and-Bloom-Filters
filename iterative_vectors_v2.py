@@ -95,34 +95,63 @@ def build_neighbor_dict(deltas):
     return neighbor_dict
 
 
-def iterative_update_edges(V_prev, edge_src, edge_dst, edge_w, n_words, bits=32):
-    """GPU edge-based update using scatter-add.
+def safe_row_normalize(X, eps=1e-8):
+    """Safely normalize rows to unit length, handling NaN/Inf."""
+    X = cp.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+    norms = cp.linalg.norm(X, axis=1, keepdims=True)
+    norms = cp.maximum(norms, eps)
+    return X / norms
 
-    V_prev: (n_words, bits)
-    edge_src: (n_edges,) indices of neighbor vectors
-    edge_dst: (n_edges,) indices of center words
-    edge_w:   (n_edges,) weight for each edge
+def iterative_update_edges(
+    V_prev,
+    edge_src,
+    edge_dst,
+    edge_w_norm,
+    n_words,
+    bits=32,
+    alpha=0.3,
+    restart=0.02,
+    V0=None,
+    eps=1e-8
+):
+    """GPU edge-based update with row-stochastic mixing and stable normalization.
+
+    V_prev: (n_words, bits) - current vectors (unit-normalized)
+    edge_src, edge_dst: (n_edges,) - edge indices
+    edge_w_norm: (n_edges,) - weights pre-normalized per destination
+    alpha: relaxation factor (0=no change, 1=full diffusion)
+    restart: teleport probability to initial vectors (prevents collapse)
+    V0: optional initial vectors for restart
     """
-    V_new = cp.zeros((n_words, bits), dtype=cp.float32)
+    V_diff = cp.zeros((n_words, bits), dtype=cp.float32)
 
-    # gather neighbor vectors
-    gathered = V_prev[edge_src]              # (n_edges, bits)
-    weighted = gathered * edge_w[:, None]    # broadcast
+    gathered = V_prev[edge_src]
+    weighted = gathered * edge_w_norm[:, None]
 
-    # scatter-add into destinations
     try:
-        cp.scatter_add(V_new, edge_dst[:, None], weighted)
+        cp.scatter_add(V_diff, edge_dst[:, None], weighted)
     except AttributeError:
-        # fallback if scatter_add not available: use add.at per dimension
         for d in range(bits):
-            cp.add.at(V_new[:, d], edge_dst, weighted[:, d])
+            cp.add.at(V_diff[:, d], edge_dst, weighted[:, d])
 
-    # normalize by counts per target
-    counts = cp.bincount(edge_dst, minlength=n_words).reshape(-1, 1)
-    counts[counts == 0] = 1
-    V_new /= counts
+    # Normalize both sides before mixing (keeps everything bounded)
+    V_prev_n = safe_row_normalize(V_prev, eps=eps)
+    V_diff_n = safe_row_normalize(V_diff, eps=eps)
 
-    return V_new
+    # Relaxed update
+    V_next = (1.0 - alpha) * V_prev_n + alpha * V_diff_n
+    V_next = safe_row_normalize(V_next, eps=eps)
+
+    # Optional restart/teleport to prevent collapse
+    if restart > 0.0:
+        if V0 is None:
+            raise ValueError("restart > 0 requires V0 (initial vectors)")
+        V_next = safe_row_normalize(
+            (1.0 - restart) * V_next + restart * safe_row_normalize(V0, eps=eps),
+            eps=eps
+        )
+
+    return V_next
 
 
 # Matrix-free: no dense n×n matrix; we use sparse W (only co-occurring pairs) and sparse @ dense on GPU.
@@ -317,6 +346,25 @@ if __name__ == '__main__':
     edge_dst = cp.asarray(np.array(edge_dst, dtype=np.int32))
     edge_w   = cp.asarray(np.array(edge_w, dtype=np.float32))
 
+    # Normalize edge weights per destination word (row-stochastic)
+    # This ensures each V_diff[i] is a convex combination, preventing overflow
+    eps = 1e-8
+    denom = cp.zeros((n_words,), dtype=cp.float32)
+    try:
+        cp.scatter_add(denom, edge_dst, edge_w)
+    except AttributeError:
+        cp.add.at(denom, edge_dst, edge_w)
+
+    denom = cp.maximum(denom, eps)
+    edge_w_norm = edge_w / denom[edge_dst]
+
+    # Diagnostics: check for bad edge weights
+    print(f"edge_w max: {float(cp.max(edge_w)):.6f}")
+    print(f"edge_w min: {float(cp.min(edge_w)):.6f}")
+    print(f"edge_w finite: {bool(cp.isfinite(edge_w).all())}")
+    print(f"edge_w_norm max: {float(cp.max(edge_w_norm)):.6f}")
+    print(f"edge_w_norm finite: {bool(cp.isfinite(edge_w_norm).all())}")
+
     # diagnostics
     print("=================================================")
     print("Diagnostics")
@@ -328,49 +376,36 @@ if __name__ == '__main__':
 
     # Initial V_prev (stack bloom filters in words_list order)
     B_gpu = cp.stack([bloom_filters[w] for w in words_list]).astype(cp.float32)
-    V_prev = B_gpu
+    V0 = safe_row_normalize(B_gpu)  # anchor: normalized initial vectors
+    V_prev = V0.copy()
 
     # ============================================================
     # ITERATIVE EDGE-BASED UPDATES
-    # (gather + scatter-add, no Python word loop, with timing)
+    # (gather + scatter-add, row-stochastic weights, with timing)
     start_total = time.time()
     for i in range(ITERATIONS):
         iter_start = time.time()
 
-        V_new = iterative_update_edges(V_prev, edge_src, edge_dst, edge_w, n_words, bits=bits)
+        V_prev = iterative_update_edges(
+            V_prev,
+            edge_src,
+            edge_dst,
+            edge_w_norm,  # pre-normalized weights
+            n_words,
+            bits=bits,
+            alpha=0.3,     # relaxation parameter
+            restart=0.10,  # restart to initial vectors (prevents collapse)
+            V0=V0,
+            eps=1e-8
+        )
 
-        # Row normalize every iteration
-        norms = cp.linalg.norm(V_new, axis=1, keepdims=True)
-        norms[norms == 0] = 1
-        V_new = V_new / norms
-
-        # ============================================================
-        # FULL ROBUST SCALING EVERY ITERATION (ORIGINAL BEHAVIOR)
-        #
-        # med = cp.median(V_new, axis=0)
-        # q75 = cp.percentile(V_new, 75, axis=0)
-        # q25 = cp.percentile(V_new, 25, axis=0)
-        # iqr = q75 - q25
-        # iqr[iqr == 0] = 1
-        # V_new = (V_new - med) / iqr
-        #
-        # NOTE:
-        # Running percentile every iteration is expensive.
-        # Current implementation applies this every 10 iterations
-        # to preserve behavior while reducing compute overhead.
-        # This preserves the original behavior for traceability.
-        # ============================================================
-
-        # robust scaling every 10 iterations
-        if i % 10 == 0:
-            med = cp.median(V_new, axis=0)
-            q75 = cp.percentile(V_new, 75, axis=0)
-            q25 = cp.percentile(V_new, 25, axis=0)
-            iqr = q75 - q25
-            iqr[iqr == 0] = 1
-            V_new = (V_new - med) / iqr
-
-        V_prev = V_new
+        # Diagnostic check every 50 iterations
+        if i % 50 == 0:
+            finite = cp.isfinite(V_prev).all()
+            norms = cp.linalg.norm(V_prev, axis=1)
+            if not bool(finite):
+                raise RuntimeError(f"Non-finite values at iteration {i}")
+            print(f"  norms: min={float(norms.min()):.6f}, mean={float(norms.mean()):.6f}, max={float(norms.max()):.6f}")
 
         iter_time = time.time() - iter_start
         elapsed = time.time() - start_total

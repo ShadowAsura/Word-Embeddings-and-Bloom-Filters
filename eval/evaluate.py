@@ -1,36 +1,44 @@
 # From https://github.com/stanfordnlp/GloVe
+# Adapted to work with JSON iterative vectors
 
 import argparse
 import numpy as np
+import json
+import os
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--vocab_file', default='vocab.txt', type=str)
-    parser.add_argument('--vectors_file', default='vectors.txt', type=str)
+    parser.add_argument('--window', default=6, type=int, help='Window size for embeddings')
+    parser.add_argument('--iteration', default=399, type=int, help='Iteration number to load')
+    parser.add_argument('--vector_dir', default='data/iterative_vectors', type=str, help='Directory containing vector files')
     args = parser.parse_args()
 
-    with open(args.vocab_file, 'r') as f:
-        words = [x.rstrip().split(' ')[0] for x in f.readlines()]
-    with open(args.vectors_file, 'r') as f:
-        vectors = {}
-        for line in f:
-            vals = line.rstrip().split(' ')
-            vectors[vals[0]] = [float(x) for x in vals[1:]]
-
+    # Load vectors from JSON
+    vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}.json')
+    
+    if not os.path.exists(vector_file):
+        raise FileNotFoundError(f"Vector file not found: {vector_file}")
+    
+    with open(vector_file, 'r') as f:
+        vectors = json.load(f)
+    
+    # Build vocabulary from JSON keys
+    words = sorted(list(vectors.keys()))
     vocab_size = len(words)
     vocab = {w: idx for idx, w in enumerate(words)}
     ivocab = {idx: w for idx, w in enumerate(words)}
 
-    vector_dim = len(vectors[ivocab[0]])
+    # Build embedding matrix from JSON values
+    vector_dim = len(vectors[words[0]])
     W = np.zeros((vocab_size, vector_dim))
     for word, v in vectors.items():
-        if word == '<unk>':
-            continue
-        W[vocab[word], :] = v
+        if word in vocab:
+            W[vocab[word], :] = v
 
     # normalize each word vector to unit length
     W_norm = np.zeros(W.shape)
     d = (np.sum(W ** 2, 1) ** (0.5))
+    d[d == 0] = 1  # avoid division by zero
     W_norm = (W.T / d).T
     evaluate_vectors(W_norm, vocab)
 
