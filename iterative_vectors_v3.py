@@ -442,6 +442,11 @@ if __name__ == '__main__':
     print("CuPy scatter_add available:", hasattr(cp, "scatter_add"))
     print("=================================================")
 
+    # Forensic: export probe edges only (no math changes)
+    os.makedirs('debug', exist_ok=True)
+    from scripts.dump_probe_edges import dump_edges_npz
+    probe_dst_ids = [word_to_idx_fixed_vocab[w] for w in ['king', 'man', 'long'] if w in word_to_idx_fixed_vocab]
+    dump_edges_npz('debug/edges_iter1_probe.npz', edge_src, edge_dst, edge_w, vocab=fixed_vocab_words, probe_dst_ids=probe_dst_ids)
 
     # Precompute denominators based on CPU logic (corpus scanning) with the new vocabulary
     # This block was previously a duplicate and has been removed.
@@ -466,10 +471,7 @@ if __name__ == '__main__':
 
         V_diff_raw = iterative_update_edges(V_prev, edge_src, edge_dst, edge_w, n_words_fixed_vocab, bits)
 
-        V_diff_raw_from_numerator = V_diff_raw / current_denominator_expanded
-
-        # Blend V_prev (already normalized) with V_diff_raw_from_numerator
-        blended_V_unnormalized = (1 - UNDER_RELAXATION_FACTOR) * V_prev + UNDER_RELAXATION_FACTOR * V_diff_normalized_by_denominator = numerator_vectors / current_denominator_expanded
+        V_diff_normalized_by_denominator = V_diff_raw / current_denominator_expanded
 
         # Blend V_prev (already normalized) with V_diff_normalized_by_denominator
         blended_V_unnormalized = (1 - UNDER_RELAXATION_FACTOR) * V_prev + UNDER_RELAXATION_FACTOR * V_diff_normalized_by_denominator
