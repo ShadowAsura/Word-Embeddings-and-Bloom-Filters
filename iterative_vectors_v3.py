@@ -344,16 +344,15 @@ if __name__ == '__main__':
 
     rescale_bloom_filter()
 
-    # Define the fixed vocabulary for all iterations based on tf_idfs keys
-    # This ensures strict vocabulary equivalence with the CPU ground truth.
-    fixed_vocab_words = sorted(list(tf_idfs.keys()))
-    n_words_fixed_vocab = len(fixed_vocab_words)
+    # Define the fixed vocabulary for all iterations from 0.json (exact key order).
+    with open("data/iterative_vectors/0.json", "r", encoding="utf-8") as f:
+        _v0 = json.load(f)
+    fixed_vocab_words = list(_v0.keys())
     word_to_idx_fixed_vocab = {w: i for i, w in enumerate(fixed_vocab_words)}
-
-    # Determine 'bits' from the first word in fixed_vocab_words
-    bits = 200 # Default if no words in bloom_filters
-    if fixed_vocab_words:
-        bits = bloom_filters[fixed_vocab_words[0]].shape[0]
+    vprev_vocab = list(_v0.keys())
+    assert fixed_vocab_words == vprev_vocab, "Vocab order must match 0.json"
+    n_words_fixed_vocab = len(fixed_vocab_words)
+    bits = len(_v0[fixed_vocab_words[0]]) if fixed_vocab_words else 200
 
 
 
