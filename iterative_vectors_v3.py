@@ -106,6 +106,103 @@ def safe_row_normalize(X, eps=1e-8):
     norms[norms == 0] = 1
     return X / norms
 
+# Deterministic numerator accumulation (no atomics): one block per destination, sequential edge loop per thread.
+DETERMINISTIC_NUMERATOR_KERNEL = r"""
+extern "C" __global__ void deterministic_numerator(
+    const int* indptr,
+    const int* indices,
+    const float* weights,
+    const float* Vprev,
+    float* Vdiff,
+    int D
+) {
+    int dst = blockIdx.x;
+    int dim = threadIdx.x;
+    if (dim >= D) return;
+    float sum = 0.0f;
+    int start = indptr[dst];
+    int end = indptr[dst + 1];
+    for (int k = start; k < end; k++) {
+        int src = indices[k];
+        float w = weights[k];
+        sum += w * Vprev[src * D + dim];
+    }
+    Vdiff[dst * D + dim] = sum;
+}
+"""
+DETERMINISTIC_NUMERATOR_KERNEL_F64 = r"""
+extern "C" __global__ void deterministic_numerator_f64(
+    const int* indptr,
+    const int* indices,
+    const double* weights,
+    const double* Vprev,
+    double* Vdiff,
+    int D
+) {
+    int dst = blockIdx.x;
+    int dim = threadIdx.x;
+    if (dim >= D) return;
+    double sum = 0.0;
+    int start = indptr[dst];
+    int end = indptr[dst + 1];
+    for (int k = start; k < end; k++) {
+        int src = indices[k];
+        double w = weights[k];
+        sum += w * Vprev[src * D + dim];
+    }
+    Vdiff[dst * D + dim] = sum;
+}
+"""
+_deterministic_kernel = None
+_deterministic_kernel_f64 = None
+
+def _get_deterministic_kernel():
+    global _deterministic_kernel
+    if _deterministic_kernel is None:
+        _deterministic_kernel = cp.RawKernel(DETERMINISTIC_NUMERATOR_KERNEL, "deterministic_numerator")
+    return _deterministic_kernel
+
+def _get_deterministic_kernel_f64():
+    global _deterministic_kernel_f64
+    if _deterministic_kernel_f64 is None:
+        _deterministic_kernel_f64 = cp.RawKernel(DETERMINISTIC_NUMERATOR_KERNEL_F64, "deterministic_numerator_f64")
+    return _deterministic_kernel_f64
+
+def deterministic_update_edges_f64(V_prev, indptr, indices, weights, n_words, D):
+    """Same as deterministic_update_edges but float64 accumulation (V_prev, weights, output are float64)."""
+    kernel = _get_deterministic_kernel_f64()
+    V_diff = cp.zeros((n_words, D), dtype=cp.float64)
+    indptr_gpu = cp.asarray(indptr)
+    block = (min(1024, (D + 31) // 32 * 32),)
+    grid = (n_words,)
+    kernel(grid, block, (indptr_gpu, indices, weights, V_prev, V_diff, np.int32(D)))
+    return V_diff
+
+def build_csr_indptr_from_edges(edge_dst, V):
+    """Build CSR indptr from edge_dst. Edges must be grouped by destination (dst).
+    indptr[d+1] - indptr[d] = number of edges for destination d.
+    """
+    edge_dst_np = cp.asnumpy(edge_dst) if hasattr(edge_dst, "get") else np.asarray(edge_dst)
+    counts = np.bincount(edge_dst_np, minlength=V)
+    indptr = np.zeros(V + 1, dtype=np.int32)
+    indptr[1:] = np.cumsum(counts)
+    return indptr
+
+def deterministic_update_edges(V_prev, indptr, indices, weights, n_words, D):
+    """Compute numerator matrix using deterministic per-destination accumulation (no atomics).
+    indptr, indices, weights are CSR by destination; edge order within each dst is preserved.
+    V_prev: (n_words, D) float32; returns V_diff: (n_words, D) float32.
+    """
+    kernel = _get_deterministic_kernel()
+    V_diff = cp.zeros((n_words, D), dtype=cp.float32)
+    indptr_gpu = cp.asarray(indptr)
+    block = (min(1024, (D + 31) // 32 * 32),)
+    grid = (n_words,)
+    kernel(grid, block, (indptr_gpu, indices, weights, V_prev, V_diff, np.int32(D)))
+    return V_diff
+
+USE_DETERMINISTIC_KERNEL = True  # Use deterministic per-dst accumulation instead of scatter_add
+
 BATCH_SIZE = 2**16 # Define a global or configurable batch size for GPU operations
 
 def iterative_update_edges(
@@ -262,11 +359,13 @@ def precompute_denominator_counts(
     tokenized_corpus,
     words_list, # This is list(tf_idfs.keys())
     initial_vector_keys, # set of keys that have initial vectors (e.g., from 0.json or bloom_filters)
-    neighborhood_size # equivalent to x in CPU deltas
+    neighborhood_size, # equivalent to x in CPU deltas
+    tf_idfs, # for iter >= 1: denom counts only slots where neighbor in tf_idfs[center] (Count_B)
 ):
     """
     Precomputes the denominator counts for each word, matching CPU logic for
     iteration 0 and iteration >= 1.
+    Iter >= 1: historical semantics — count only slots where neighbor in tf_idfs[current_word].
     """
     n_words = len(words_list)
     word_to_idx = {word: i for i, word in enumerate(words_list)}
@@ -276,7 +375,7 @@ def precompute_denominator_counts(
 
     # Denominator for iteration 0: neighbor must exist in initial_vector_keys
     counts_iter0 = np.zeros(n_words, dtype=np.int32)
-    # Denominator for iteration >= 1: neighbor must exist in current embedding vocab (words_list)
+    # Denominator for iteration >= 1: neighbor must be in tf_idfs[current_word] (Count_B / Count_C semantics)
     counts_iter_n = np.zeros(n_words, dtype=np.int32)
 
     for sentence_idx, tokenized_sentence in enumerate(tqdm(tokenized_corpus, desc="Precomputing denominators", dynamic_ncols=True)):
@@ -297,19 +396,15 @@ def precompute_denominator_counts(
                     if neighbor_word in initial_vector_keys:
                         counts_iter0[current_word_global_idx] += 1
 
-                    # Condition for iter >= 1: neighbor must be in words_list (embedding vocab)
-                    # Note: word_to_idx implicitly checks for existence in words_list
-                    if neighbor_word in word_to_idx:
+                    # Condition for iter >= 1: count only slots where neighbor in tf_idfs[current_word] (historical 1.json semantics)
+                    if neighbor_word in tf_idfs.get(current_word, {}):
                         counts_iter_n[current_word_global_idx] += 1
     
-    # Convert to CuPy arrays
-    counts_iter0_cp = cp.array(counts_iter0, dtype=cp.float32)
-    counts_iter_n_cp = cp.array(counts_iter_n, dtype=cp.float32)
-    
+    # Convert to CuPy arrays (float64 for alignment with historical NumPy float64 intermediates)
+    counts_iter0_cp = cp.array(counts_iter0, dtype=cp.float64)
+    counts_iter_n_cp = cp.array(counts_iter_n, dtype=cp.float64)
+
     # Handle division by zero: if a word has no valid neighbors, its count will be 0.
-    # We should ensure the denominator is at least 1 to avoid NaN/Inf.
-    # This matches the spirit of the CPU code where `total_adjacent_words` could be 0, leading to issues.
-    # For robust GPU computation, we should replace 0 with 1 to avoid NaNs.
     counts_iter0_cp[counts_iter0_cp == 0] = 1
     counts_iter_n_cp[counts_iter_n_cp == 0] = 1
 
@@ -332,9 +427,11 @@ def convert_to_cpu(iterative_vectors):
 
 if __name__ == '__main__':
     NUM_ITERATIONS_TO_RUN = int(os.environ.get('ITERATIONS', '400'))
-    NEIGHBORHOOD_SIZE = 6
-    UNDER_RELAXATION_FACTOR = float(os.environ.get('UNDER_RELAXATION_FACTOR', '0.3'))
-    checkpoint_iterations = [10, 25, 50, 75, 100, 150, NUM_ITERATIONS_TO_RUN] # Include final iteration as a checkpoint
+    NEIGHBORHOOD_SIZE = int(os.environ.get('NEIGHBORHOOD_SIZE', '4'))
+    # Residual mixing (under-relaxation): V_next = (1-alpha)*V_prev + alpha*V_diffusion. alpha=1.0 = pure diffusion.
+    ALPHA = float(os.environ.get('ALPHA', '1.0'))
+    USE_ROBUST_SCALING = os.environ.get('USE_ROBUST_SCALING', '1') == '1'
+    checkpoint_iterations = [1, 2, 5, 10, 25, 50, 75, 100, 150, NUM_ITERATIONS_TO_RUN] # Include final iteration as a checkpoint
     deltas = [i for i in range(-NEIGHBORHOOD_SIZE, NEIGHBORHOOD_SIZE + 1) if i != 0]
 
     print("Using GPU (CuPy), neighbor-list additive updates (matrix-free)")
@@ -366,7 +463,8 @@ if __name__ == '__main__':
         tokenized_corpus=tokenized_corpus,
         words_list=fixed_vocab_words,
         initial_vector_keys=bloom_filters_keys_set, # Use bloom_filters_keys for iter0 counts as per CPU logic
-        neighborhood_size=NEIGHBORHOOD_SIZE
+        neighborhood_size=NEIGHBORHOOD_SIZE,
+        tf_idfs=tf_idfs,
     )
 
     # ============================================================
@@ -405,8 +503,8 @@ if __name__ == '__main__':
     if len(fixed_vocab_words) != common_words_count:
         print("WARNING: Vocabulary mismatch between 0.json and bloom filters. This might cause issues.")
 
-    # Initialize V_prev from the loaded 0.json vectors
-    V_prev = cp.stack([cp.asarray(cpu_initial_vectors[w]) for w in fixed_vocab_words]).astype(cp.float32)
+    # Initialize V_prev from the loaded 0.json vectors (float64 for entire pipeline)
+    V_prev = cp.stack([cp.asarray(cpu_initial_vectors[w]) for w in fixed_vocab_words]).astype(cp.float64)
 
     # Rebuild neighbor adjacency list and edge lists with the updated fixed_vocab_words
     # This is necessary because fixed_vocab_words might have changed from the initial definition
@@ -432,27 +530,14 @@ if __name__ == '__main__':
     edge_dst = cp.asarray(np.array(edge_dst, dtype=np.int32))
     edge_w   = cp.asarray(np.array(edge_w, dtype=cp.float32))
 
-    # diagnostics
-    print("=================================================")
-    print("Diagnostics")
-    print("-------------------------------------------------")
-    print("Number of words (fixed vocabulary):", n_words_fixed_vocab)
-    print("Number of edges:", edge_src.size)
-    print("CuPy scatter_add available:", hasattr(cp, "scatter_add"))
-    print("=================================================")
+    # CSR by destination (edges already grouped by dst from corpus-order build); no reorder.
+    indptr = build_csr_indptr_from_edges(edge_dst, n_words_fixed_vocab)
 
-    # Forensic: export probe edges only (no math changes)
-    os.makedirs('debug', exist_ok=True)
-    from scripts.dump_probe_edges import dump_edges_npz
-    probe_dst_ids = [word_to_idx_fixed_vocab[w] for w in ['king', 'man', 'long'] if w in word_to_idx_fixed_vocab]
-    dump_edges_npz('debug/edges_iter1_probe.npz', edge_src, edge_dst, edge_w, vocab=fixed_vocab_words, probe_dst_ids=probe_dst_ids)
+    print("Words:", n_words_fixed_vocab, "Edges:", int(edge_src.size))
 
-    # Precompute denominators based on CPU logic (corpus scanning) with the new vocabulary
-    # This block was previously a duplicate and has been removed.
-
-    # Save iteration 0 directly from the loaded 0.json
-    iterative_vectors_dict_iter0 = {fixed_vocab_words[j]: V_prev[j] for j in range(n_words_fixed_vocab)}
-    cpu_vectors_iter0 = convert_to_cpu(iterative_vectors_dict_iter0)
+    # Save iteration 0 directly from the loaded 0.json (cast to float32 only before serialization)
+    V_save_0 = cp.asnumpy(V_prev).astype(np.float32)
+    cpu_vectors_iter0 = {fixed_vocab_words[j]: V_save_0[j].tolist() for j in range(n_words_fixed_vocab)}
     output_path_iter0 = os.path.join('data/iterative_vectors', f'window_{NEIGHBORHOOD_SIZE}_iter_0_v3_{bits}bit.json')
     with open(output_path_iter0, 'w') as f:
         json.dump(cpu_vectors_iter0, f, indent=4)
@@ -468,17 +553,21 @@ if __name__ == '__main__':
         # Expand denominator counts to (n_words, 1) for broadcasting
         current_denominator_expanded = cp.expand_dims(current_denominator_counts, axis=1);
 
-        V_diff_raw = iterative_update_edges(V_prev, edge_src, edge_dst, edge_w, n_words_fixed_vocab, bits)
+        if USE_DETERMINISTIC_KERNEL:
+            # Main pipeline: float64 only (V_prev, weights, numerator output)
+            V_diff_raw = deterministic_update_edges_f64(
+                V_prev, indptr, edge_src, edge_w.astype(cp.float64),
+                n_words_fixed_vocab, bits
+            )
+        else:
+            V_diff_raw = iterative_update_edges(V_prev, edge_src, edge_dst, edge_w, n_words_fixed_vocab, bits)
 
+        # Division by denom in float64
         V_diff_normalized_by_denominator = V_diff_raw / current_denominator_expanded
 
-        # Blend V_prev (already normalized) with V_diff_normalized_by_denominator
-        blended_V_unnormalized = (1 - UNDER_RELAXATION_FACTOR) * V_prev + UNDER_RELAXATION_FACTOR * V_diff_normalized_by_denominator
-
-        # Apply normalization: (1) Row L2 normalization, then (2) Robust column scaling
-        # This order matches the CPU version's normalize_vector_dimensions function.
+        # No blending: historical semantics. V_next = V_final (numerator -> denom -> row norm -> robust scale).
         # (1) Row L2 normalization
-        V_normalized_rows = safe_row_normalize(blended_V_unnormalized)
+        V_normalized_rows = safe_row_normalize(V_diff_normalized_by_denominator)
 
         # (2) Robust column scaling
         med = cp.median(V_normalized_rows, axis=0)
@@ -497,16 +586,29 @@ if __name__ == '__main__':
         if cp.any(nonzero_iqr_mask_iter): # Only apply if there's at least one non-zero IQR dimension
             scaled_V_next[:, nonzero_iqr_mask_iter] = (V_normalized_rows[:, nonzero_iqr_mask_iter] - med[nonzero_iqr_mask_iter]) / iqr[nonzero_iqr_mask_iter]
 
-        V_next = scaled_V_next
+        # Optional robust column scaling (toggle for experiments)
+        if USE_ROBUST_SCALING:
+            V_next_diffusion = scaled_V_next
+        else:
+            V_next_diffusion = V_normalized_rows
+
+        # Controlled residual mixing: V_next = (1 - alpha)*V_prev + alpha*V_diffusion (before float32 cast)
+        V_next = (1.0 - ALPHA) * V_prev + ALPHA * V_next_diffusion
 
         # Assign to V_prev for next iteration
         V_prev = V_next
         iter_end = time.time()
         print(f"Iteration {i} took {iter_end - iter_start:.2f} seconds.")
-        # Save current iteration vectors
+        # Save current iteration vectors (cast to float32 only before serialization)
         if i in checkpoint_iterations or i == NUM_ITERATIONS_TO_RUN:
-            current_iter_vectors = {fixed_vocab_words[j]: V_next[j].tolist() for j in range(n_words_fixed_vocab)}
-            output_path = os.path.join('data/iterative_vectors', f'window_{NEIGHBORHOOD_SIZE}_iter_{i}_v3_{bits}bit.json')
+            V_save = cp.asnumpy(V_next).astype(np.float32)
+            current_iter_vectors = {fixed_vocab_words[j]: V_save[j].tolist() for j in range(n_words_fixed_vocab)}
+            fname_base = f'window_{NEIGHBORHOOD_SIZE}_iter_{i}_v3_{bits}bit'
+            if ALPHA != 1.0:
+                fname_base += f'_alpha{ALPHA}'
+            if not USE_ROBUST_SCALING:
+                fname_base += '_norobust'
+            output_path = os.path.join('data/iterative_vectors', fname_base + '.json')
             with open(output_path, 'w') as f:
                 json.dump(current_iter_vectors, f, indent=4)
             print(f"Saved iteration {i} vectors to {output_path}")
