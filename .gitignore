@@ -10,6 +10,7 @@ data/fairy_tales
 data/iterative_vectors_dropped_tf-idfs/
 __pycache__/
 
+data/iteartive_vectors/
 
 # Misc.
 notes.txt
