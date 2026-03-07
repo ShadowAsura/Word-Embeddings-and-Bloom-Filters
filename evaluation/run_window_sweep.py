@@ -43,7 +43,7 @@ def run_training(window: int):
 def get_embedding_path(window: int, iter_num: int):
     return os.path.join(
         VEC_DIR,
-        f"window_{window}_iter_{iter_num}_v3_32bit_alpha{ALPHA}_norobust.json",
+        f"window_{window}_iter_{iter_num}_v3_32bit.json",
     )
 
 

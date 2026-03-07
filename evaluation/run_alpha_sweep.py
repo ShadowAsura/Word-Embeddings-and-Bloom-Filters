@@ -38,9 +38,7 @@ def run_training(alpha: float):
 
 
 def get_embedding_path(alpha: float, iter_num: int):
-    if alpha == 1.0:
-        return os.path.join(VEC_DIR, f"window_{WINDOW}_iter_{iter_num}_v3_32bit.json")
-    return os.path.join(VEC_DIR, f"window_{WINDOW}_iter_{iter_num}_v3_32bit_alpha{alpha}.json")
+    return os.path.join(VEC_DIR, f"window_{WINDOW}_iter_{iter_num}_v3_32bit.json")
 
 
 def run_evaluate(embedding_path: str) -> tuple[float, float, float] | None:
