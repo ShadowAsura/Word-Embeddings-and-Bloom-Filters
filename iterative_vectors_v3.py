@@ -1,47 +1,56 @@
 """
-GPU implementation that performs the exact same math as iterative_vectors.py.
-Vocabulary = list(tf_idfs.keys()). Edges built by scanning corpus like CPU generate_vector.
-Numerator = scatter-add of tfidf * V_prev; denominator = neighbor slot count; V_raw = numerator/denom;
-then normalize_vector_dimensions (row norm + robust scaling) as CPU. No blending, no 0.json.
+TF-IDF weighted neighbor diffusion over vocabulary from tf_idfs.
+Initialization: Bloom filters rescaled to [-1, 1]; words without Bloom get zeros.
+Numerator = scatter-add of (tfidf * V_prev) over edges; denominator = neighbor slot count.
+Update: V_raw = numerator / denom; then row L2 norm + robust scaling (median / IQR).
+Iteration 0 uses only Bloom-existing neighbors; later iterations use all vocab neighbors.
+Algorithm matches iterative_vectors.py (CPU reference).
 """
 from tqdm import tqdm
-import sys
 import time
 import os
 import json
 import numpy as np
 
-# CUDA path for Windows
-_cuda_bin = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin"
-if os.name == "nt" and os.path.isdir(_cuda_bin):
-    os.environ["PATH"] = _cuda_bin + os.pathsep + os.environ.get("PATH", "")
-    if "CUDA_PATH" not in os.environ:
-        os.environ["CUDA_PATH"] = os.path.dirname(_cuda_bin)
-    if hasattr(os, "add_dll_directory"):
-        os.add_dll_directory(_cuda_bin)
+if os.environ.get("ADD_CUDA_BIN", "0") == "1":
+    _cuda_bin = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin"
+    if os.name == "nt" and os.path.isdir(_cuda_bin):
+        os.environ["PATH"] = _cuda_bin + os.pathsep + os.environ.get("PATH", "")
+        if "CUDA_PATH" not in os.environ:
+            os.environ["CUDA_PATH"] = os.path.dirname(_cuda_bin)
+        if hasattr(os, "add_dll_directory"):
+            os.add_dll_directory(_cuda_bin)
 
 import cupy as cp
 
-with open('data/fairytales_word_tf-idfs.json', 'r') as f:
+# If cp.scatter_add supports 2D indexed updates, we use it; otherwise fallback to cp.add.at per dimension.
+
+# -----------------------------------------------------------------------------
+# Paths (override via env or keep defaults for reproducibility)
+# -----------------------------------------------------------------------------
+TFIDF_PATH = os.environ.get("TFIDF_PATH", "data/fairytales_word_tf-idfs.json")
+BLOOM_PATH = os.environ.get("BLOOM_PATH", "data/fairytales_word_bloom-filters.json")
+TOKENIZED_PATH = os.environ.get("TOKENIZED_PATH", "data/fairytales_tokenized.json")
+OUT_DIR = os.environ.get("OUT_DIR", "data/iterative_vectors")
+
+with open(TFIDF_PATH, "r") as f:
     tf_idfs = json.load(f)
-with open('data/fairytales_word_bloom-filters.json', 'r') as f:
+with open(BLOOM_PATH, "r") as f:
     bloom_filters = json.load(f)
-with open('data/fairytales_tokenized.json', 'r') as f:
+with open(TOKENIZED_PATH, "r") as f:
     tokenized_corpus = json.load(f)
 
-# Vocabulary exactly as CPU: list(tf_idfs.keys())
 vocab = list(tf_idfs.keys())
 word_to_idx = {w: i for i, w in enumerate(vocab)}
 n_words = len(vocab)
 
-# bits from first word that has a bloom filter
 bits = 200
 for w in vocab:
     if w in bloom_filters:
         bits = len(bloom_filters[w])
         break
 
-# Rescale bloom to [-1, 1] like CPU
+# Bloom init in [-1, 1]
 def rescale_bloom_filter():
     for word in list(bloom_filters.keys()):
         bloom_filters[word] = np.array(bloom_filters[word], dtype=np.float64) * 2 - 1
@@ -49,7 +58,9 @@ def rescale_bloom_filter():
 rescale_bloom_filter()
 bloom_set = set(bloom_filters.keys())
 
+
 def build_edges_iter0_and_all(deltas, vocab_set, bloom_set, tf_idfs, tokenized_corpus):
+    """One-pass corpus scan, O(#tokens * window). Returns (iter0_edges, all_edges)."""
     edge_dst_all = []
     edge_src_all = []
     edge_w_all = []
@@ -69,25 +80,34 @@ def build_edges_iter0_and_all(deltas, vocab_set, bloom_set, tf_idfs, tokenized_c
                 neighbor = sentence[q]
                 if neighbor not in vocab_set:
                     continue
-                w = tf_idfs.get(center, {}).get(neighbor, 0.0)
+                wt = tf_idfs.get(center, {}).get(neighbor, 0.0)
                 src_idx = word_to_idx[neighbor]
                 edge_dst_all.append(dst_idx)
                 edge_src_all.append(src_idx)
-                edge_w_all.append(w)
+                edge_w_all.append(wt)
                 if neighbor in bloom_set:
                     edge_dst_iter0.append(dst_idx)
                     edge_src_iter0.append(src_idx)
-                    edge_w_iter0.append(w)
+                    edge_w_iter0.append(wt)
     return (
-        (np.array(edge_dst_iter0), np.array(edge_src_iter0), np.array(edge_w_iter0, dtype=np.float64)),
-        (np.array(edge_dst_all), np.array(edge_src_all), np.array(edge_w_all, dtype=np.float64)),
+        (
+            np.array(edge_dst_iter0, dtype=np.int32),
+            np.array(edge_src_iter0, dtype=np.int32),
+            np.array(edge_w_iter0, dtype=np.float64),
+        ),
+        (
+            np.array(edge_dst_all, dtype=np.int32),
+            np.array(edge_src_all, dtype=np.int32),
+            np.array(edge_w_all, dtype=np.float64),
+        ),
     )
 
-def scatter_add_numerator(V_prev, edge_src, edge_dst, edge_w, n_words, bits):
-    """Numerator = sum over edges of edge_w * V_prev[edge_src]. Uses scatter_add (GPU)."""
+
+def scatter_add_numerator(V_prev, edge_src, edge_dst, edge_w, n_words, bits, BATCH):
+    """Numerator = sum over edges of edge_w * V_prev[edge_src]. float64 accumulation."""
     V_diff = cp.zeros((n_words, bits), dtype=cp.float64)
+    col_template = cp.arange(bits, dtype=cp.int32)
     n_edges = edge_src.size
-    BATCH = 2**20
     for start in range(0, n_edges, BATCH):
         end = min(start + BATCH, n_edges)
         batch_src = edge_src[start:end]
@@ -95,9 +115,15 @@ def scatter_add_numerator(V_prev, edge_src, edge_dst, edge_w, n_words, bits):
         batch_w = edge_w[start:end]
         gathered = V_prev[batch_src]
         weighted = gathered * batch_w[:, cp.newaxis]
-        for d in range(bits):
-            cp.add.at(V_diff[:, d], batch_dst, weighted[:, d])
+        try:
+            row_flat = cp.repeat(batch_dst, bits)
+            col_flat = cp.tile(col_template, batch_dst.size)
+            cp.scatter_add(V_diff, (row_flat, col_flat), weighted.ravel())
+        except (AttributeError, TypeError):
+            for d in range(bits):
+                cp.add.at(V_diff[:, d], batch_dst, weighted[:, d])
     return V_diff
+
 
 def normalize_vector_dimensions_gpu(vectors_cp):
     """Same as CPU: row norm then robust scaling (median, IQR). vectors_cp: (n_words, bits)."""
@@ -112,22 +138,30 @@ def normalize_vector_dimensions_gpu(vectors_cp):
     vectors_cp = (vectors_cp - med) / iqr
     return vectors_cp
 
-if __name__ == '__main__':
-    NEIGHBORHOOD_SIZE = int(os.environ.get('NEIGHBORHOOD_SIZE', '4'))
-    NUM_ITERATIONS = int(os.environ.get('ITERATIONS', '400'))
-    deltas = [i for i in range(-NEIGHBORHOOD_SIZE, NEIGHBORHOOD_SIZE + 1) if i != 0]
-    checkpoint_iterations = [0, 1, 4, 9, 24, 49, 74, 99, 149]
-    checkpoint_iterations = [i for i in checkpoint_iterations if i < NUM_ITERATIONS]
-    if NUM_ITERATIONS - 1 not in checkpoint_iterations:
-        checkpoint_iterations.append(NUM_ITERATIONS - 1)
 
-    os.makedirs('data/iterative_vectors', exist_ok=True)
+if __name__ == "__main__":
+    # -------------------------------------------------------------------------
+    # Configuration (env overrides for sweeps; defaults for paper)
+    # -------------------------------------------------------------------------
+    NEIGHBORHOOD_SIZE = int(os.environ.get("NEIGHBORHOOD_SIZE", "4"))
+    ITERATIONS = int(os.environ.get("ITERATIONS", "400"))
+    # Paper checkpoints; final iteration is always appended below
+    CHECKPOINTS = [0, 1, 4, 9, 24, 49, 74, 99, 149]
+    BATCH = int(os.environ.get("BATCH", str(2**20)))
+
+    deltas = [i for i in range(-NEIGHBORHOOD_SIZE, NEIGHBORHOOD_SIZE + 1) if i != 0]
+    checkpoint_iterations = [i for i in CHECKPOINTS if i < ITERATIONS]
+    if ITERATIONS - 1 not in checkpoint_iterations:
+        checkpoint_iterations.append(ITERATIONS - 1)
+
+    os.makedirs(OUT_DIR, exist_ok=True)
     vocab_set = set(vocab)
 
     (edge_dst_i0, edge_src_i0, edge_w_i0), (edge_dst_all, edge_src_all, edge_w_all) = build_edges_iter0_and_all(
         deltas, vocab_set, bloom_set, tf_idfs, tokenized_corpus
     )
 
+    # Avoid division by zero for words with no valid neighbors
     denom_iter0 = np.bincount(edge_dst_i0, minlength=n_words).astype(np.float64)
     denom_iter0[denom_iter0 == 0] = 1
     denom_all = np.bincount(edge_dst_all, minlength=n_words).astype(np.float64)
@@ -136,7 +170,6 @@ if __name__ == '__main__':
     denom_iter0_cp = cp.asarray(denom_iter0)
     denom_all_cp = cp.asarray(denom_all)
 
-    # Initial V for iter 0: bloom filter vectors for vocab (neighbors in scatter); words not in bloom get zeros
     V_prev = cp.zeros((n_words, bits), dtype=cp.float64)
     for i, w in enumerate(vocab):
         if w in bloom_filters:
@@ -151,7 +184,7 @@ if __name__ == '__main__':
 
     start_total = time.time()
 
-    for iteration in range(NUM_ITERATIONS):
+    for iteration in range(ITERATIONS):
         iter_start = time.time()
         if iteration == 0:
             edge_dst_cp = edge_dst_i0_cp
@@ -164,20 +197,22 @@ if __name__ == '__main__':
             edge_w_cp = edge_w_all_cp
             denom_cp = denom_all_cp
 
-        numerator = scatter_add_numerator(V_prev, edge_src_cp, edge_dst_cp, edge_w_cp, n_words, bits)
+        numerator = scatter_add_numerator(V_prev, edge_src_cp, edge_dst_cp, edge_w_cp, n_words, bits, BATCH)
         denom_expanded = cp.expand_dims(denom_cp, 1)
         V_raw = numerator / denom_expanded
 
         V_prev = normalize_vector_dimensions_gpu(V_raw)
 
         elapsed = time.time() - iter_start
-        print(f"Iteration {iteration} took {elapsed:.2f} s")
+        if iteration % 10 == 0 or iteration in checkpoint_iterations:
+            print(f"iter {iteration} {elapsed:.2f}s")
         if iteration in checkpoint_iterations:
-            V_save = cp.asnumpy(V_prev).astype(np.float64)
+            # Serialize float32 to reduce file size; computation remains float64.
+            V_save = cp.asnumpy(V_prev).astype(np.float32)
             out = {vocab[j]: V_save[j].tolist() for j in range(n_words)}
-            path = os.path.join('data/iterative_vectors', f'window_{NEIGHBORHOOD_SIZE}_iter_{iteration}_v3_{bits}bit.json')
-            with open(path, 'w') as f:
-                json.dump(out, f, indent=4)
-            print(f"Saved {path}")
+            path = os.path.join(OUT_DIR, f"window_{NEIGHBORHOOD_SIZE}_iter_{iteration}_v3_{bits}bit.json")
+            with open(path, "w") as f:
+                json.dump(out, f)
+            print(f"  saved {path}")
 
-    print(f"Total time: {time.time() - start_total:.2f} s")
+    print(f"Total time: {time.time() - start_total:.2f}s")
