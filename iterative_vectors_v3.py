@@ -333,6 +333,8 @@ def convert_to_cpu(iterative_vectors):
 if __name__ == '__main__':
     NUM_ITERATIONS_TO_RUN = int(os.environ.get('ITERATIONS', '400'))
     NEIGHBORHOOD_SIZE = 6
+    UNDER_RELAXATION_FACTOR = float(os.environ.get('UNDER_RELAXATION_FACTOR', '0.3'))
+    checkpoint_iterations = [10, 25, 50, 75, 100, 150, NUM_ITERATIONS_TO_RUN] # Include final iteration as a checkpoint
     deltas = [i for i in range(-NEIGHBORHOOD_SIZE, NEIGHBORHOOD_SIZE + 1) if i != 0]
 
     print("Using GPU (CuPy), neighbor-list additive updates (matrix-free)")
@@ -462,16 +464,20 @@ if __name__ == '__main__':
         # Expand denominator counts to (n_words, 1) for broadcasting
         current_denominator_expanded = cp.expand_dims(current_denominator_counts, axis=1);
 
-        numerator_vectors = iterative_update_edges(
-                V_prev, edge_src, edge_dst, edge_w, n_words_fixed_vocab, bits=bits
-            )
+        V_diff_raw = iterative_update_edges(V_prev, edge_src, edge_dst, edge_w, n_words_fixed_vocab, bits)
 
-        V_updated_raw = numerator_vectors / current_denominator_expanded
-        
+        V_diff_raw_from_numerator = V_diff_raw / current_denominator_expanded
+
+        # Blend V_prev (already normalized) with V_diff_raw_from_numerator
+        blended_V_unnormalized = (1 - UNDER_RELAXATION_FACTOR) * V_prev + UNDER_RELAXATION_FACTOR * V_diff_normalized_by_denominator = numerator_vectors / current_denominator_expanded
+
+        # Blend V_prev (already normalized) with V_diff_normalized_by_denominator
+        blended_V_unnormalized = (1 - UNDER_RELAXATION_FACTOR) * V_prev + UNDER_RELAXATION_FACTOR * V_diff_normalized_by_denominator
+
         # Apply normalization: (1) Row L2 normalization, then (2) Robust column scaling
         # This order matches the CPU version's normalize_vector_dimensions function.
         # (1) Row L2 normalization
-        V_normalized_rows = safe_row_normalize(V_updated_raw)
+        V_normalized_rows = safe_row_normalize(blended_V_unnormalized)
 
         # (2) Robust column scaling
         med = cp.median(V_normalized_rows, axis=0)
@@ -497,24 +503,12 @@ if __name__ == '__main__':
         iter_end = time.time()
         print(f"Iteration {i} took {iter_end - iter_start:.2f} seconds.")
         # Save current iteration vectors
-        # Check for NaNs or Infs after computing V_next
-        if cp.any(cp.isnan(V_next)) or cp.any(cp.isinf(V_next)):
-            print(f"WARNING: NaN or Inf detected in V_next at iteration {i}")
-            # Optionally, print more details for debugging
-            nan_indices = cp.argwhere(cp.isnan(V_next))
-            inf_indices = cp.argwhere(cp.isinf(V_next))
-            if nan_indices.size > 0:
-                print(f"NaN indices: {nan_indices[:5]}...")
-            if inf_indices.size > 0:
-                print(f"Inf indices: {inf_indices[:5]}...")
-            
-        # Convert CuPy array to Python list for JSON serialization
-        # (only for saving, V_next remains a CuPy array for next iteration)
-        current_iter_vectors = {fixed_vocab_words[j]: V_next[j].tolist() for j in range(n_words_fixed_vocab)}
-        output_path = os.path.join('data/iterative_vectors', f'window_{NEIGHBORHOOD_SIZE}_iter_{i}_v3_{bits}bit.json')
-        with open(output_path, 'w') as f:
-            json.dump(current_iter_vectors, f, indent=4)
-        print(f"Saved iteration {i} vectors to {output_path}")
+        if i in checkpoint_iterations or i == NUM_ITERATIONS_TO_RUN:
+            current_iter_vectors = {fixed_vocab_words[j]: V_next[j].tolist() for j in range(n_words_fixed_vocab)}
+            output_path = os.path.join('data/iterative_vectors', f'window_{NEIGHBORHOOD_SIZE}_iter_{i}_v3_{bits}bit.json')
+            with open(output_path, 'w') as f:
+                json.dump(current_iter_vectors, f, indent=4)
+            print(f"Saved iteration {i} vectors to {output_path}")
     
     end_total = time.time()
     print(f"Total time for {NUM_ITERATIONS_TO_RUN} iterations: {end_total - start_total:.2f} seconds.")

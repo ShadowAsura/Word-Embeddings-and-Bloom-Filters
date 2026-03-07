@@ -9,12 +9,12 @@ import os
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--window', default=6, type=int, help='Window size for embeddings')
-    parser.add_argument('--iteration', default=3, type=int, help='Iteration number to load')
+    parser.add_argument('--iteration', default=399, type=int, help='Iteration number to load')
     parser.add_argument('--vector_dir', default='data/iterative_vectors', type=str, help='Directory containing vector files')
     args = parser.parse_args()
 
     # Load vectors from JSON
-    vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}_v3_200bit.json')
+    vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}.json')
     
     if not os.path.exists(vector_file):
         raise FileNotFoundError(f"Vector file not found: {vector_file}")
@@ -52,8 +52,7 @@ def evaluate_vectors(W, vocab):
         'gram5-present-participle.txt', 'gram6-nationality-adjective.txt',
         'gram7-past-tense.txt', 'gram8-plural.txt', 'gram9-plural-verbs.txt',
         ]
-    # Path to question-data relative to this script (works when called from notebook or CLI)
-    prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'question-data')
+    prefix = './eval/question-data/'
 
     # to avoid memory overflow, could be increased/decreased
     # depending on system and vocab size
@@ -68,7 +67,7 @@ def evaluate_vectors(W, vocab):
     full_count = 0 # count all questions, including those with unknown words
 
     for i in range(len(filenames)):
-        with open(os.path.join(prefix, filenames[i]), 'r') as f:
+        with open('%s/%s' % (prefix, filenames[i]), 'r') as f:
             full_data = [line.rstrip().split(' ') for line in f]
             full_count += len(full_data)
             data = [x for x in full_data if all(word in vocab for word in x)]
