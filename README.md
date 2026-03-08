@@ -37,3 +37,44 @@ pip install -r requirements.txt
 - `iteration_data.ipynb`: generates data for analyzing representations across iterations generated via `iterative_vectors.py`.
 - `pca_plots.ipynb`: generates PCA plots.
 - `iterative_vectors.py`: generates vector representations using the iterative method.
+
+### Full workflow (training → 10.7% analogy)
+
+End-to-end order to build data, train, and evaluate to the reported ~10.7% total analogy accuracy (e.g. window 6 or 8 at iter 25).
+
+**1. Corpus and tokenization**
+
+- Put raw corpus text in `data/fairy_tales/` (e.g. `1.txt`, `2.txt`, …).
+- In **`generate_tf-idfs_words.ipynb`**: build the tokenized corpus (and any helper files like `n_neighbors.json`, `neighbor_frequencies.json` if that notebook expects them), then save:
+  - `data/fairytales_tokenized.json` (list of tokenized sentences).
+
+**2. Word TF-IDF**
+
+- In **`generate_tf-idfs_words.ipynb`**: compute word–word TF-IDFs from the tokenized corpus and save:
+  - `data/fairytales_word_tf-idfs.json`.
+
+**3. Bloom filters**
+
+- Run **`generate_bloom_filters.ipynb`**: reads `data/fairytales_tokenized.json`, writes:
+  - `data/fairytales_word_bloom-filters.json`.
+
+**4. Initial vectors (iteration 0)**
+
+- **`data/iterative_vectors/0.json`** must exist before training. It is a JSON `{ "word": [float, ...], ... }` with the same vocabulary as your TF-IDF/bloom data and one vector per word (e.g. from bloom filters or a prior run). Create it once (e.g. export bloom filters into this format into `data/iterative_vectors/0.json`) so the vocab and keys match the rest of the pipeline.
+
+**5. Training (GPU)**
+
+- From repo root:
+  - Single run:  
+    `NEIGHBORHOOD_SIZE=4 ALPHA=0.1 USE_ROBUST_SCALING=0 ITERATIONS=50 python iterative_vectors_v3.py`  
+    Checkpoints are saved as `data/iterative_vectors/window_4_iter_1_v3_32bit.json`, …, `window_4_iter_50_v3_32bit.json`.
+  - Or run the **window sweep** (windows 2, 4, 6, 8; ALPHA=0.1, USE_ROBUST_SCALING=0, 50 iters):  
+    `python evaluation/run_window_sweep.py`  
+    This trains each window, then evaluates checkpoints 1, 5, 10, 25, 50 and writes `evaluation/window_sweep_results.csv` and `evaluation/window_sweep_summary.txt`.
+
+**6. Analogy evaluation**
+
+- On a single checkpoint:  
+  `python evaluation/evaluate_analogies.py --embeddings data/iterative_vectors/window_6_iter_25_v3_32bit.json`  
+  You’ll see Semantic %, Syntactic %, and **Total %** (e.g. 10.7% for window 6 or 8 at iter 25).
+- The **10.7%** number comes from this evaluator run on those checkpoints (produced by `iterative_vectors_v3.py`); it is not computed inside the training script.

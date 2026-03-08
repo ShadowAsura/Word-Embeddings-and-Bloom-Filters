@@ -11,21 +11,25 @@ def generate():
     parser.add_argument('--window', default=6, type=int, help='Window size for embeddings')
     iteration = 2 # We load the latest iteration generated
     parser.add_argument('--iteration', default=iteration, type=int, help='Iteration number to load')
-    parser.add_argument('--vector_dir', default=None, type=str, help='Directory containing vector files')
+    parser.add_argument('--vector_file', default=None, type=str, help='Path to the vector file')
     args = parser.parse_args()
 
-    # Auto-detect vector directory if not provided
-    if args.vector_dir is None:
-        # Check if we're in eval/ directory
-        if os.path.exists('data/iterative_vectors'):
-            args.vector_dir = 'data/iterative_vectors'
-        elif os.path.exists('../data/iterative_vectors'):
-            args.vector_dir = '../data/iterative_vectors'
-        else:
-            raise FileNotFoundError("Could not find data/iterative_vectors directory. Try running from workspace root or eval/")
-    
-    # Load vectors from JSON
-    vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}_v3_200bit.json')
+    # Use vector_file directly if provided
+    if args.vector_file:
+        vector_file = args.vector_file
+    else:
+        # Auto-detect vector directory if not provided
+        if args.vector_dir is None:
+            # Check if we're in eval/ directory
+            if os.path.exists('data/iterative_vectors'):
+                args.vector_dir = 'data/iterative_vectors'
+            elif os.path.exists('../data/iterative_vectors'):
+                args.vector_dir = '../data/iterative_vectors'
+            else:
+                raise FileNotFoundError("Could not find data/iterative_vectors directory. Try running from workspace root or eval/")
+        
+        # Load vectors from JSON
+        vector_file = os.path.join(args.vector_dir, f'window_{args.window}_iter_{args.iteration}_v3_200bit.json')
     
     if not os.path.exists(vector_file):
         raise FileNotFoundError(f"Vector file not found: {vector_file}")
@@ -73,12 +77,19 @@ def distance(W, vocab, ivocab, input_term):
     # Compute analogy vector: word2 - word1 + word3
     vec = W[indices[1]] - W[indices[0]] + W[indices[2]]
     
+    # Mean-centering and re-normalization for W before computing cosine distances
+    W_mean_centered = W - np.mean(W, axis=0)
+    # Re-normalize rows to unit length after mean-centering
+    d_centered = (np.sum(W_mean_centered ** 2, 1) ** (0.5))
+    d_centered[d_centered == 0] = 1  # avoid division by zero
+    W_mean_centered_norm = (W_mean_centered.T / d_centered).T
+
     # Normalize the analogy vector to unit length
     d = (np.sum(vec ** 2) ** (0.5))
     vec_norm = (vec / d) if d > 0 else vec
     
-    # Compute cosine distances to all words
-    dist = np.dot(W, vec_norm)
+    # Compute cosine distances to all words using mean-centered and re-normalized W
+    dist = np.dot(W_mean_centered_norm, vec_norm)
     
     # Set input words to -inf so they don't rank as answers
     for idx in indices:
