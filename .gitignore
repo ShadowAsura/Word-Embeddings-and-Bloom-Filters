@@ -5,6 +5,7 @@
 .env/
 .venv/
 venv/
+.testenv
 __pycache__/
 
 # Old / alternate data (not used for main runs)
