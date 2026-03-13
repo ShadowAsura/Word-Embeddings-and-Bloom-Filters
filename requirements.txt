@@ -1,0 +1,11 @@
+numpy==2.0.2
+tqdm==4.67.1
+nltk==3.9.1
+scipy==1.13.1
+spacy==3.8.3
+lemminflect==0.2.3
+mmh3==5.1.0
+scikit-learn==1.6.1
+matplotlib==3.9.4
+pandas==2.2.3
+cupy-cuda13x

@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Python
+.env/
+.venv/
+venv/
+.testenv
+__pycache__/
+
+# Old / alternate data (not used for main runs)
+data/fairy_tales
+data/iterative_vectors_dropped_tf-idfs/
+
+
+data/iterative_vectors*
+
+
+# Debug / diagnostic artifacts (research baseline: no forensics in tree)
+debug/
+*.npz
+
+# Misc
+notes.txt
