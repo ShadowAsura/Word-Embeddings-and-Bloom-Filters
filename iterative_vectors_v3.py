@@ -145,7 +145,8 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     NEIGHBORHOOD_SIZE = int(os.environ.get("NEIGHBORHOOD_SIZE", "4"))
     ITERATIONS = int(os.environ.get("ITERATIONS", "400"))
-    # Paper checkpoints; final iteration is always appended below
+    SAVE_EVERY_ITER = os.environ.get("SAVE_EVERY_ITER", "0") == "1"
+    # Paper checkpoints; final iteration is always appended below (used only when SAVE_EVERY_ITER=0)
     CHECKPOINTS = [0, 1, 4, 9, 24, 49, 74, 99, 149]
     BATCH = int(os.environ.get("BATCH", str(2**20)))
 
@@ -155,6 +156,9 @@ if __name__ == "__main__":
         checkpoint_iterations.append(ITERATIONS - 1)
 
     os.makedirs(OUT_DIR, exist_ok=True)
+    if SAVE_EVERY_ITER:
+        full_iter_dir = os.path.join(OUT_DIR, f"v3_full_window_{NEIGHBORHOOD_SIZE}")
+        os.makedirs(full_iter_dir, exist_ok=True)
     vocab_set = set(vocab)
 
     (edge_dst_i0, edge_src_i0, edge_w_i0), (edge_dst_all, edge_src_all, edge_w_all) = build_edges_iter0_and_all(
@@ -201,12 +205,34 @@ if __name__ == "__main__":
         denom_expanded = cp.expand_dims(denom_cp, 1)
         V_raw = numerator / denom_expanded
 
+        # Optional: dump row-normalized (pre-robust) vectors for IQR debug (stability_debug.py Step 3)
+        if os.environ.get("PREROBUST_DUMP", "0") == "1" and iteration in (0, 1, 2, 10, 50):
+            norms = cp.linalg.norm(V_raw, axis=1, keepdims=True)
+            norms[norms == 0] = 1
+            V_row_norm = V_raw / norms
+            path_pre = os.path.join(OUT_DIR, f"window_{NEIGHBORHOOD_SIZE}_iter_{iteration}_v3_{bits}bit_prerobust.json")
+            V_pre_save = cp.asnumpy(V_row_norm).astype(np.float32)
+            out_pre = {vocab[j]: V_pre_save[j].tolist() for j in range(n_words)}
+            with open(path_pre, "w") as f:
+                json.dump(out_pre, f)
+            print(f"  saved {path_pre}")
+
         V_prev = normalize_vector_dimensions_gpu(V_raw)
 
         elapsed = time.time() - iter_start
         if iteration % 10 == 0 or iteration in checkpoint_iterations:
             print(f"iter {iteration} {elapsed:.2f}s")
-        if iteration in checkpoint_iterations:
+
+        if SAVE_EVERY_ITER:
+            # Save every iteration as numeric file for Δ=1 stability comparison (vocab order consistent, float32).
+            V_save = cp.asnumpy(V_prev).astype(np.float32)
+            out = {vocab[j]: V_save[j].tolist() for j in range(n_words)}
+            path = os.path.join(full_iter_dir, f"{iteration}.json")
+            with open(path, "w") as f:
+                json.dump(out, f)
+            if iteration % 50 == 0 or iteration == ITERATIONS - 1:
+                print(f"  saved {path}")
+        elif iteration in checkpoint_iterations:
             # Serialize float32 to reduce file size; computation remains float64.
             V_save = cp.asnumpy(V_prev).astype(np.float32)
             out = {vocab[j]: V_save[j].tolist() for j in range(n_words)}
