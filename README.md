@@ -18,6 +18,7 @@ pip install -r requirements.txt
 
 - `data/`: all files generated or used for data generation.
     - `fairy_tales/`: *(NOT COMMITTED)* binary .txt files for corpus
+    - `text8/`: *(NOT COMMITTED)* optional text8 corpus (large raw text)
     - `indiv_word_representations/`: *(NOT COMMITTED)* generated using various representation methods, the vector for each instances of KQMW in the corpus. Generated in `indiv_word_representations.ipynb`.
     - `iterative_vectors/`: *(NOT COMMITTED)* stores vector representations across iterations, generated via `iterative_vectors.py`.
     - `kqmw_iterations/`: *(NOT COMMITTED)* measures how representations for KQMW generated using the iterative vectors method changes across many iterations. Generated in `iteration_data.ipynb`.
@@ -28,6 +29,8 @@ pip install -r requirements.txt
     - `n_neighbors.json`: *(NOT COMMITTED)* Helper file for use in `generate_tf-idfs_words.ipynb`.
     - `neighbor_frequencies.json`: *(NOT COMMITTED)* Helper file for use in `generate_tf-idfs_words.ipynb`.
     - `sentence_examples/`: examples of tokenized lemmatized sentences containing KQMW.
+- `evaluation/`: evaluation scripts and question sets.
+    - `analogy_questions_fairytales_clean.json`: cleaned semantic + syntactic analogy benchmark used for current diffusion vs Word2Vec comparisons.
 - `eval/`: files from https://github.com/stanfordnlp/GloVe for analogies tests.
 - `pca/`: directory for saving generated PCA plots. 
 - `generate_bloom_filters.ipynb`: generates bloom filters for each word in the corpus.
@@ -37,6 +40,7 @@ pip install -r requirements.txt
 - `iteration_data.ipynb`: generates data for analyzing representations across iterations generated via `iterative_vectors.py`.
 - `pca_plots.ipynb`: generates PCA plots.
 - `iterative_vectors.py`: generates vector representations using the iterative method.
+- `results/analogies/`: committed CSV + Markdown outputs summarizing analogy evaluations (paper-style comparison table, benchmark cleanup notes, etc.).
 
 ### Full workflow (training → 10.7% analogy)
 
