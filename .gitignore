@@ -10,7 +10,7 @@ __pycache__/
 
 # Old / alternate data (not used for main runs)
 data/*
-
+data/text8/*
 
 data/iterative_vectors*
 
@@ -24,4 +24,3 @@ debug/
 
 # Misc
 notes.txt
-text8/*.txt
