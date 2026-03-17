@@ -132,18 +132,22 @@ def main():
     fig.savefig(os.path.join(PLOTS_DIR, "best_semantic_by_window_word2vec_vs_diffusion.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Summary table
+    # --- Summary table (percentages to one decimal)
     print("\nSummary (per window):")
     print("-" * 80)
-    print(f"{'window':<8} {'diffusion_best_iter':<20} {'diffusion_best_total':<22} {'word2vec_total':<16} {'diffusion_best_semantic':<24} {'word2vec_semantic':<18}")
+    print(f"{'Window':<8} {'Diffusion best iter':<20} {'Diffusion total %':<18} {'Word2Vec total %':<18} {'Diffusion semantic %':<22} {'Word2Vec semantic %':<20}")
     print("-" * 80)
     for w in WINDOWS:
         d_iter, d_total = best_diff_total.get(w, (None, None))
         d_sem_iter, d_sem = best_diff_semantic.get(w, (None, None))
         w2v_row = w2v_by_window.get(w, {})
-        w2v_t = w2v_row.get("total_acc", "")
-        w2v_s = w2v_row.get("semantic_acc", "")
-        print(f"{w:<8} {str(d_iter):<20} {str(d_total) if d_total is not None else '':<22} {str(w2v_t):<16} {str(d_sem) if d_sem is not None else '':<24} {str(w2v_s):<18}")
+        w2v_t = w2v_row.get("total_acc", None)
+        w2v_s = w2v_row.get("semantic_acc", None)
+        d_total_s = f"{d_total:.1f}" if d_total is not None else ""
+        d_sem_s = f"{d_sem:.1f}" if d_sem is not None else ""
+        w2v_t_s = f"{w2v_t:.1f}" if w2v_t is not None else ""
+        w2v_s_s = f"{w2v_s:.1f}" if w2v_s is not None else ""
+        print(f"{w:<8} {str(d_iter):<20} {d_total_s:<18} {w2v_t_s:<18} {d_sem_s:<22} {w2v_s_s:<20}")
     print("-" * 80)
     print(f"Plots saved under {PLOTS_DIR}")
 

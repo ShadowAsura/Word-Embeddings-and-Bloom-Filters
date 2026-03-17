@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Evaluate all diffusion checkpoints and optional baseline JSONs; write CSV for paper table.
+Evaluate diffusion checkpoints and Word2Vec baseline embeddings; write CSV for paper table.
 Usage: python evaluation/run_paper_eval.py
 """
 from __future__ import annotations
@@ -23,13 +23,13 @@ def parse_eval_output(stdout: str):
     sem_acc = syn_acc = total_acc = None
     sem_valid = syn_valid = total_valid = None
     for line in stdout.splitlines():
-        m = re.match(r"Semantic\s+(\d+)\s+(\d+)\s+([\d.]+)%", line)
+        m = re.match(r"Semantic\s+(\d+)/(\d+)\s+([\d.]+)%", line)
         if m:
             sem_valid, _, sem_acc = int(m.group(1)), int(m.group(2)), float(m.group(3))
-        m = re.match(r"Syntactic\s+(\d+)\s+(\d+)\s+([\d.]+)%", line)
+        m = re.match(r"Syntactic\s+(\d+)/(\d+)\s+([\d.]+)%", line)
         if m:
             syn_valid, _, syn_acc = int(m.group(1)), int(m.group(2)), float(m.group(3))
-        m = re.match(r"Total\s+(\d+)\s+(\d+)\s+([\d.]+)%", line)
+        m = re.match(r"Total\s+(\d+)/(\d+)\s+([\d.]+)%", line)
         if m:
             total_valid, _, total_acc = int(m.group(1)), int(m.group(2)), float(m.group(3))
     return sem_acc, syn_acc, total_acc, sem_valid, syn_valid, total_valid
@@ -100,6 +100,19 @@ def main():
             "total_valid": total_valid or "",
             "embedding_path": path,
         })
+
+    # Consistent row order: Diffusion N=2,4,6,8 (by window, then iter), then Word2Vec window=2,4,6,8
+    def row_key(r):
+        method_order = 0 if r["method"] == "diffusion" else 1
+        return (method_order, int(r["window"]), int(r["iter"]))
+
+    rows = sorted(rows, key=row_key)
+
+    # One decimal place for accuracies; keep valid counts as-is
+    for r in rows:
+        for k in ("semantic_acc", "syntactic_acc", "total_acc"):
+            if r.get(k) is not None:
+                r[k] = round(float(r[k]), 1)
 
     with open(OUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(

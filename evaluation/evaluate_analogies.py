@@ -127,13 +127,13 @@ def main():
         overall_acc = 0.0
 
     print(f"Embedding: {args.embeddings}")
-    print(f"Category     Valid   Total   Accuracy")
-    print("-" * 42)
+    print(f"Category     Valid/Total   Accuracy")
+    print("-" * 36)
     for cat, valid, total, correct in results:
         acc = (100.0 * correct / valid) if valid > 0 else 0.0
-        print(f"{cat:<12} {valid:>6}   {total:>5}   {acc:>6.1f}%")
-    print("-" * 42)
-    print(f"{'Total':<12} {total_valid:>6}   {total_count:>5}   {overall_acc:>6.1f}%")
+        print(f"{cat:<12} {valid:>3}/{total:<3}   {acc:>6.1f}%")
+    print("-" * 36)
+    print(f"{'Total':<12} {total_valid:>3}/{total_count:<3}   {overall_acc:>6.1f}%")
 
 
 if __name__ == "__main__":
