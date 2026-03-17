@@ -22,13 +22,16 @@ def parse_eval_output(stdout: str):
     sem_acc = syn_acc = total_acc = None
     sem_valid = syn_valid = total_valid = None
     for line in stdout.splitlines():
-        m = re.match(r"Semantic\s+(\d+)\s+(\d+)\s+([\d.]+)%", line)
+        # Supports both formats:
+        # - old:  "Semantic      20      20     16.7%"
+        # - new:  "Semantic      20/20       16.7%"
+        m = re.match(r"Semantic\s+(\d+)(?:/|\s+)(\d+)\s+([\d.]+)%", line)
         if m:
             sem_valid, _, sem_acc = int(m.group(1)), int(m.group(2)), float(m.group(3))
-        m = re.match(r"Syntactic\s+(\d+)\s+(\d+)\s+([\d.]+)%", line)
+        m = re.match(r"Syntactic\s+(\d+)(?:/|\s+)(\d+)\s+([\d.]+)%", line)
         if m:
             syn_valid, _, syn_acc = int(m.group(1)), int(m.group(2)), float(m.group(3))
-        m = re.match(r"Total\s+(\d+)\s+(\d+)\s+([\d.]+)%", line)
+        m = re.match(r"Total\s+(\d+)(?:/|\s+)(\d+)\s+([\d.]+)%", line)
         if m:
             total_valid, _, total_acc = int(m.group(1)), int(m.group(2)), float(m.group(3))
     return sem_acc, syn_acc, total_acc, total_valid
