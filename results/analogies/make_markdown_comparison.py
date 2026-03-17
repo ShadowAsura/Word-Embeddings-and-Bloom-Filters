@@ -8,16 +8,17 @@ from __future__ import annotations
 import csv
 import json
 import os
+import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "results" / "analogies" / "paper_analogy_results.csv"
-QUESTIONS_PATH = ROOT / "evaluation" / "analogy_questions_shared.json"
+DEFAULT_QUESTIONS_PATH = ROOT / "evaluation" / "analogy_questions_shared.json"
 OUT_MD = ROOT / "results" / "analogies" / "comparison_table.md"
 
 
-def load_counts() -> tuple[int, int, int]:
-    with QUESTIONS_PATH.open("r", encoding="utf-8") as f:
+def load_counts(questions_path: Path) -> tuple[int, int, int]:
+    with questions_path.open("r", encoding="utf-8") as f:
         q = json.load(f)
     sem_total = len(q.get("semantic", []))
     syn_total = len(q.get("syntactic", []))
@@ -54,7 +55,16 @@ def best_diffusion_by_window(rows):
 
 
 def main():
-    sem_total, syn_total, total_total = load_counts()
+    ap = argparse.ArgumentParser(description="Build comparison table from paper_analogy_results.csv.")
+    ap.add_argument(
+        "--questions",
+        default=str(DEFAULT_QUESTIONS_PATH),
+        help="Analogy questions JSON used to compute denominators (default: shared questions).",
+    )
+    args = ap.parse_args()
+
+    questions_path = Path(args.questions)
+    sem_total, syn_total, total_total = load_counts(questions_path)
     rows = load_rows()
     best_diff = best_diffusion_by_window(rows)
 
