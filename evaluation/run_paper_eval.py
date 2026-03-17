@@ -12,6 +12,8 @@ import re
 import subprocess
 import sys
 
+import argparse
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EVAL_SCRIPT = os.path.join(ROOT, "evaluation", "evaluate_analogies.py")
 QUESTIONS = os.path.join(ROOT, "evaluation", "analogy_questions.json")
@@ -35,11 +37,11 @@ def parse_eval_output(stdout: str):
     return sem_acc, syn_acc, total_acc, sem_valid, syn_valid, total_valid
 
 
-def run_evaluate(embedding_path: str):
+def run_evaluate(embedding_path: str, questions_path: str):
     if not os.path.isfile(embedding_path):
         return None
     result = subprocess.run(
-        [sys.executable, EVAL_SCRIPT, "--embeddings", embedding_path, "--questions", QUESTIONS],
+        [sys.executable, EVAL_SCRIPT, "--embeddings", embedding_path, "--questions", questions_path],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -50,6 +52,16 @@ def run_evaluate(embedding_path: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Evaluate diffusion + Word2Vec embeddings for analogy table.")
+    parser.add_argument(
+        "--questions",
+        default=QUESTIONS,
+        help="Path to analogy questions JSON (default: evaluation/analogy_questions.json)",
+    )
+    args = parser.parse_args()
+
+    questions_path = args.questions
+
     os.makedirs(os.path.dirname(OUT_CSV), exist_ok=True)
     rows = []
 
@@ -62,7 +74,7 @@ def main():
             if not m:
                 continue
             w, it = int(m.group(1)), int(m.group(2))
-            res = run_evaluate(path)
+            res = run_evaluate(path, questions_path)
             if res is None:
                 continue
             sem_acc, syn_acc, total_acc, sem_valid, syn_valid, total_valid = res
@@ -84,7 +96,7 @@ def main():
         path = os.path.join(ROOT, "data", "word2vec", f"word2vec_vectors_32d_window{window}.json")
         if not os.path.isfile(path):
             continue
-        res = run_evaluate(path)
+        res = run_evaluate(path, questions_path)
         if res is None:
             continue
         sem_acc, syn_acc, total_acc, sem_valid, syn_valid, total_valid = res

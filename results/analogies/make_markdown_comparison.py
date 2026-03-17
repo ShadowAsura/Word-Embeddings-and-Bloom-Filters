@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "results" / "analogies" / "paper_analogy_results.csv"
-QUESTIONS_PATH = ROOT / "evaluation" / "analogy_questions.json"
+QUESTIONS_PATH = ROOT / "evaluation" / "analogy_questions_shared.json"
 OUT_MD = ROOT / "results" / "analogies" / "comparison_table.md"
 
 
