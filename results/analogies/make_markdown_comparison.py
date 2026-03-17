@@ -93,7 +93,7 @@ def main():
         sem_v = f"{sv}/{sem_total}"
         syn_v = f"{syv}/{syn_total}"
         tot_v = f"{tv}/{total_total}"
-        best_iter = r["iter"] if r["iter"] >= 0 else "—"
+        best_iter = r["iter"] if r["iter"] >= 0 else "-"
         lines.append(
             f"| {method_label:<9} | {config:<12} | {best_iter!s:<9} | {sem:<8} | {syn:<9} | {tot:<5} | {sem_v:<20} | {syn_v:<21} | {tot_v:<17} |"
         )
