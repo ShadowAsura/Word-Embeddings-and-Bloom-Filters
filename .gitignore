@@ -12,6 +12,8 @@ __pycache__/
 data/*
 data/text8/*
 
+results/logs/*
+
 data/iterative_vectors*
 
 evaluation/*.csv
@@ -24,3 +26,4 @@ debug/
 
 # Misc
 notes.txt
+.claude/
