@@ -1,0 +1,185 @@
+=== NEAREST NEIGHBORS (TOP 5) ===
+Diffusion embedding: data/iterative_vectors/window_10_iter_1_v3_32bit.json
+CBOW embedding:      data/word2vec/word2vec_cbow_200d_window4.json
+Query: king
+  Diffusion                                CBOW
+  1. queen (0.975)                         1. emperor (0.532)
+  2. bride (0.961)                         2. monarch (0.497)
+  3. news (0.944)                          3. sultan (0.466)
+  4. princess (0.935)                      4. prince (0.453)
+  5. greatly (0.934)                       5. princess (0.441)
+
+Query: queen
+  Diffusion                                CBOW
+  1. king (0.975)                          1. princess (0.516)
+  2. princess (0.964)                      2. prince (0.443)
+  3. prince (0.945)                        3. father (0.429)
+  4. allow (0.938)                         4. daughter (0.427)
+  5. bride (0.936)                         5. wife (0.423)
+
+Query: prince
+  Diffusion                                CBOW
+  1. princess (0.989)                      1. princess (0.556)
+  2. queen (0.945)                         2. youth (0.491)
+  3. servant (0.936)                       3. brother (0.462)
+  4. king (0.932)                          4. king (0.453)
+  5. bride (0.926)                         5. queen (0.443)
+
+Query: princess
+  Diffusion                                CBOW
+  1. prince (0.989)                        1. prince (0.556)
+  2. queen (0.964)                         2. maiden (0.549)
+  3. king (0.935)                          3. queen (0.516)
+  4. allow (0.925)                         4. lady (0.492)
+  5. bride (0.921)                         5. daughter (0.486)
+
+Query: wolf
+  Diffusion                                CBOW
+  1. fox (0.946)                           1. fox (0.485)
+  2. rabbit (0.935)                        2. tiger (0.474)
+  3. pet (0.890)                           3. hare (0.456)
+  4. sparrow (0.888)                       4. lion (0.433)
+  5. dog (0.884)                           5. ox (0.416)
+
+Query: forest
+  Diffusion                                CBOW
+  1. field (0.938)                         1. wood (0.664)
+  2. reach (0.922)                         2. thicket (0.455)
+  3. wood (0.917)                          3. clump (0.413)
+  4. dusk (0.911)                          4. grove (0.411)
+  5. road (0.904)                          5. tree (0.404)
+
+Query: good
+  Diffusion                                CBOW
+  1. please (0.922)                        1. excellent (0.436)
+  2. well (0.910)                          2. bad (0.413)
+  3. luck (0.901)                          3. well (0.396)
+  4. want (0.900)                          4. decent (0.377)
+  5. boast (0.895)                         5. kind (0.363)
+
+Query: evil
+  Diffusion                                CBOW
+  1. fairyland (0.778)                     1. wicked (0.434)
+  2. enchantment (0.777)                   2. harm (0.399)
+  3. deed (0.759)                          3. cruel (0.391)
+  4. bless (0.755)                         4. malignant (0.389)
+  5. oppose (0.754)                        5. terrible (0.384)
+
+Query: beautiful
+  Diffusion                                CBOW
+  1. lovely (0.964)                        1. lovely (0.693)
+  2. maiden (0.930)                        2. pretty (0.554)
+  3. fair (0.902)                          3. prettiest (0.544)
+  4. favourite (0.889)                     4. fair (0.523)
+  5. see (0.877)                           5. loveliest (0.517)
+
+Query: old
+  Diffusion                                CBOW
+  1. poor (0.951)                          1. aged (0.535)
+  2. call (0.946)                          2. injured (0.457)
+  3. beggar (0.930)                        3. devout (0.433)
+  4. go (0.922)                            4. judicious (0.426)
+  5. girl (0.920)                          5. merrier (0.421)
+
+Query: mother
+  Diffusion                                CBOW
+  1. console (0.922)                       1. wife (0.451)
+  2. comfort (0.911)                       2. father (0.447)
+  3. husband (0.910)                       3. sister (0.442)
+  4. poor (0.910)                          4. parent (0.435)
+  5. dear (0.907)                          5. mamma (0.420)
+
+Query: father
+  Diffusion                                CBOW
+  1. uncle (0.943)                         1. parent (0.534)
+  2. husband (0.929)                       2. son (0.453)
+  3. cousin (0.927)                        3. mother (0.447)
+  4. wife (0.923)                          4. queen (0.429)
+  5. son (0.921)                           5. wife (0.422)
+
+Query: child
+  Diffusion                                CBOW
+  1. mother (0.896)                        1. baby (0.530)
+  2. fond (0.889)                          2. babe (0.517)
+  3. poor (0.880)                          3. boy (0.428)
+  4. call (0.875)                          4. mother (0.413)
+  5. wife (0.874)                          5. son (0.408)
+
+Query: dragon
+  Diffusion                                CBOW
+  1. monster (0.807)                       1. serpent (0.395)
+  2. serpent (0.769)                       2. troll (0.394)
+  3. bow (0.758)                           3. monster (0.354)
+  4. moment (0.736)                        4. eagle (0.351)
+  5. rage (0.733)                          5. snake (0.340)
+
+Query: magic
+  Diffusion                                CBOW
+  1. magical (0.759)                       1. magical (0.461)
+  2. spell (0.726)                         2. power (0.358)
+  3. enchantment (0.725)                   3. enable (0.323)
+  4. power (0.719)                         4. invisible (0.302)
+  5. shape (0.670)                         5. virtue (0.299)
+
+Query: sword
+  Diffusion                                CBOW
+  1. sheath (0.881)                        1. weapon (0.500)
+  2. weapon (0.873)                        2. spear (0.472)
+  3. strike (0.856)                        3. brand (0.465)
+  4. grasp (0.851)                         4. dagger (0.460)
+  5. pierce (0.832)                        5. mace (0.448)
+
+Query: brave
+  Diffusion                                CBOW
+  1. stranger (0.893)                      1. valiant (0.436)
+  2. chief (0.890)                         2. fearless (0.436)
+  3. name (0.882)                          3. gallant (0.424)
+  4. counsel (0.876)                       4. valor (0.372)
+  5. noble (0.874)                         5. dauntless (0.363)
+
+Query: dark
+  Diffusion                                CBOW
+  1. twilight (0.863)                      1. darkness (0.530)
+  2. path (0.851)                          2. gloomy (0.440)
+  3. space (0.844)                         3. dim (0.439)
+  4. shade (0.842)                         4. dusk (0.411)
+  5. broad (0.841)                         5. dense (0.405)
+
+Query: little
+  Diffusion                                CBOW
+  1. frisk (0.902)                         1. tiny (0.455)
+  2. boy (0.900)                           2. big (0.343)
+  3. plump (0.891)                         3. misshapen (0.341)
+  4. dirty (0.887)                         4. naughty (0.341)
+  5. cheerfully (0.873)                    5. peddler (0.341)
+
+Query: death
+  Diffusion                                CBOW
+  1. loss (0.846)                          1. doom (0.460)
+  2. realize (0.840)                       2. suffering (0.396)
+  3. succeed (0.829)                       3. fate (0.395)
+  4. save (0.829)                          4. punishment (0.394)
+  5. difficult (0.828)                     5. die (0.379)
+
+=== OVERLAP ANALYSIS ===
+king: 20.0%
+queen: 40.0%
+prince: 60.0%
+princess: 40.0%
+wolf: 20.0%
+forest: 20.0%
+good: 20.0%
+evil: 0.0%
+beautiful: 40.0%
+old: 0.0%
+mother: 0.0%
+father: 40.0%
+child: 20.0%
+dragon: 40.0%
+magic: 40.0%
+sword: 20.0%
+brave: 0.0%
+dark: 0.0%
+little: 0.0%
+death: 0.0%
+Average overlap: 21.0%

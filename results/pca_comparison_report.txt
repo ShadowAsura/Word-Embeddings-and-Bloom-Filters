@@ -1,0 +1,25 @@
+=== PCA COMPARISON SETUP ===
+Diffusion embedding: data/iterative_vectors/window_10_iter_1_v3_32bit.json
+CBOW embedding:      data/word2vec/word2vec_cbow_200d_window4.json
+Intersection vocabulary size: 17620
+adjustText available: yes
+
+=== GROUP WORDS USED (present in BOTH embeddings) ===
+Royalty: king, queen, prince, princess, kingdom, throne, crown, royal
+Family: mother, father, son, daughter, brother, sister, child, children
+Animals: wolf, bear, fox, horse, bird, cat, dog, lion
+Magic: magic, witch, fairy, spell, enchanted, wizard, curse
+Nature: forest, tree, river, mountain, garden, sea, water, stone
+
+=== CLUSTER COHERENCE (mean pairwise cosine within group) ===
+Group         Diffusion       CBOW
+Royalty           0.644      0.248
+Family            0.729      0.324
+Animals           0.581      0.221
+Magic             0.510      0.170
+Nature            0.532      0.243
+
+Saved PNG files:
+- results/plots/pca_comparison.png
+- results/plots/pca_diffusion.png
+- results/plots/pca_cbow.png

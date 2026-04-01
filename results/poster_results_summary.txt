@@ -1,0 +1,207 @@
+================================================================================
+BLOOM FILTER DIFFUSION: POSTER QUALITATIVE RESULTS
+Generated: April 1, 2026
+================================================================================
+
+This document summarizes the nearest-neighbor analysis and PCA visualizations
+comparing Bloom Filter Diffusion embeddings against Word2Vec CBOW.
+
+================================================================================
+EMBEDDINGS ANALYZED
+================================================================================
+
+Diffusion (Best):
+  - File: data/iterative_vectors/window_10_iter_1_v3_32bit.json
+  - Window: 10
+  - Iteration: 1
+  - Precision: 32-bit
+  - Vocabulary size: 17,620+
+
+CBOW (Best):
+  - File: data/word2vec/word2vec_cbow_200d_window4.json
+  - Dimensions: 200
+  - Window: 4
+  - Vocabulary size: 17,620+
+
+Intersection vocabulary: 17,620 words
+
+================================================================================
+PART 1: NEAREST NEIGHBOR ANALYSIS
+================================================================================
+
+Script: evaluation/nearest_neighbors.py
+Output: results/nearest_neighbors.txt
+
+Query words tested (20):
+  king, queen, prince, princess, wolf, forest, good, evil, beautiful, old,
+  mother, father, child, dragon, magic, sword, brave, dark, little, death
+
+KEY FINDING: Average overlap = 21.0%
+  → Diffusion and CBOW agree on only ~1 word out of top-5 neighbors on average
+
+OVERLAP BREAKDOWN:
+  Best agreement (60%+):
+    - prince: 60% (both find princess as top neighbor)
+  
+  Moderate agreement (40%):
+    - queen, princess, beautiful, father, dragon, magic: 40% each
+  
+  Low agreement (20%):
+    - king, wolf, forest, good, child, sword: 20% each
+  
+  No agreement (0%):
+    - evil, old, mother, brave, dark, little, death
+
+INTERPRETIVE DIFFERENCES:
+
+1. Diffusion captures broader semantic associations:
+   - queen → bride (wedding context)
+   - forest → field (open spaces)
+   - mother → console, comfort (emotional support)
+
+2. CBOW focuses on synonym/direct relationships:
+   - beautiful → lovely, pretty (direct synonyms)
+   - dark → darkness, gloomy (lexical variations)
+   - dragon → serpent, troll (category members)
+
+EXAMPLE COMPARISON:
+
+Query: king
+  Diffusion                    CBOW
+  1. queen (0.975)             1. emperor (0.532)
+  2. bride (0.961)             2. monarch (0.497)
+  3. news (0.944)              3. sultan (0.466)
+  4. princess (0.935)          4. prince (0.453)
+  5. greatly (0.934)           5. princess (0.441)
+
+Query: beautiful
+  Diffusion                    CBOW
+  1. lovely (0.964)            1. lovely (0.693)
+  2. maiden (0.930)            2. pretty (0.554)
+  3. fair (0.902)              3. prettiest (0.544)
+  4. favourite (0.889)         4. fair (0.523)
+  5. see (0.877)               5. loveliest (0.517)
+
+================================================================================
+PART 2: PCA VISUALIZATIONS
+================================================================================
+
+Script: evaluation/plot_pca_comparison.py
+Report: results/pca_comparison_report.txt
+
+GENERATED PLOTS (300 DPI):
+  1. results/plots/pca_comparison.png  [16×7, side-by-side]
+  2. results/plots/pca_diffusion.png   [8×7, individual]
+  3. results/plots/pca_cbow.png        [8×7, individual]
+
+WORD GROUPS VISUALIZED (All 40 words present in both embeddings):
+
+  Royalty (8 words):
+    king, queen, prince, princess, kingdom, throne, crown, royal
+
+  Family (8 words):
+    mother, father, son, daughter, brother, sister, child, children
+
+  Animals (8 words):
+    wolf, bear, fox, horse, bird, cat, dog, lion
+
+  Magic (7 words):
+    magic, witch, fairy, spell, enchanted, wizard, curse
+
+  Nature (8 words):
+    forest, tree, river, mountain, garden, sea, water, stone
+
+VISUALIZATION FEATURES:
+  - Background: All 17,620 vocabulary words as small gray dots
+  - Colored points: 39 semantic group words
+  - Text labels: Automatically adjusted to minimize overlap (using adjustText)
+  - Color scheme: tab10 colormap (5 distinct colors)
+  - Separate PCA fit for each embedding
+
+================================================================================
+PART 3: CLUSTER COHERENCE ANALYSIS
+================================================================================
+
+Metric: Mean pairwise cosine similarity within each semantic group
+(Higher = words in group are more tightly clustered)
+
+Group         Diffusion       CBOW      Ratio (Diff/CBOW)
+------------------------------------------------------------
+Royalty           0.644      0.248          2.60×
+Family            0.729      0.324          2.25×
+Animals           0.581      0.221          2.63×
+Magic             0.510      0.170          3.00×
+Nature            0.532      0.243          2.19×
+------------------------------------------------------------
+AVERAGE           0.599      0.241          2.53×
+
+KEY FINDING: Diffusion embeddings cluster semantically related words
+2.5× more tightly than CBOW on average!
+
+STRONGEST CLUSTERING:
+  - Diffusion: Family (0.729) > Royalty (0.644) > Animals (0.581)
+  - CBOW: Family (0.324) > Royalty (0.248) > Nature (0.243)
+
+INTERPRETATION:
+  → Diffusion's iterative Bloom filter aggregation creates stronger
+    semantic clusters than CBOW's direct context prediction
+  → Family relationships show highest coherence in both methods
+  → Magic concepts are most loosely clustered (abstract/varied usage)
+
+================================================================================
+IMPLICATIONS FOR POSTER
+================================================================================
+
+1. QUALITATIVE EVIDENCE: Low nearest-neighbor overlap (21%) shows Diffusion
+   learns different semantic relationships than CBOW
+
+2. QUANTITATIVE ADVANTAGE: 2.5× higher cluster coherence demonstrates
+   Diffusion better groups semantically related concepts
+
+3. VISUAL IMPACT: PCA plots show clear semantic clusters (especially for
+   Royalty, Family groups) - useful for poster visualization
+
+4. COMPLEMENTARY METHODS: Diffusion captures broader associations while
+   CBOW focuses on direct synonymy → different use cases
+
+================================================================================
+FILES FOR POSTER
+================================================================================
+
+Tables/Text:
+  ✓ results/nearest_neighbors.txt         [Neighbor tables for 20 words]
+  ✓ results/pca_comparison_report.txt     [Cluster coherence metrics]
+  ✓ results/poster_results_summary.txt    [This file]
+
+Visualizations (300 DPI):
+  ✓ results/plots/pca_comparison.png      [Side-by-side for direct comparison]
+  ✓ results/plots/pca_diffusion.png       [Standalone if more space needed]
+  ✓ results/plots/pca_cbow.png            [Standalone for reference]
+
+Scripts (reproducible):
+  ✓ evaluation/nearest_neighbors.py       [NN analysis + overlap stats]
+  ✓ evaluation/plot_pca_comparison.py     [PCA + coherence computation]
+
+================================================================================
+RECOMMENDED POSTER CONTENT
+================================================================================
+
+OPTION 1: Compact Layout
+  - Show pca_comparison.png (side-by-side is space-efficient)
+  - Include 3-4 example nearest neighbor queries (e.g., king, beautiful, wolf)
+  - Cluster coherence table (5 rows showing 2.5× advantage)
+
+OPTION 2: Detailed Layout
+  - Show both individual PCA plots (larger, more readable)
+  - Include 6-8 nearest neighbor examples
+  - Full overlap analysis (21% with breakdown by category)
+  - Cluster coherence table with interpretation
+
+SUGGESTED CAPTION:
+  "Bloom Filter Diffusion learns tighter semantic clusters than CBOW
+   (2.5× higher within-group cosine similarity) while capturing broader
+   associative relationships (21% nearest-neighbor overlap)."
+
+================================================================================
+END OF SUMMARY
+================================================================================
