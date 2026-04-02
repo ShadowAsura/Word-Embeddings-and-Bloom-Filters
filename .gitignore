@@ -8,14 +8,15 @@ venv/
 .testenv
 __pycache__/
 
-# Old / alternate data (not used for main runs)
+# All data files (too large or generated)
 data/*
 data/text8/*
-
-results/logs/*
-
 data/iterative_vectors*
 
+# Generated results
+results/
+
+# Generated evaluation outputs
 evaluation/*.csv
 evaluation/*.txt
 evaluation/*.png

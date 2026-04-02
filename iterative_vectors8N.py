@@ -153,7 +153,7 @@ def sigmoid_normalize_vectors():
 if __name__ == '__main__':
     import os
     ITERATIONS = 401 # some amount of iterations, around 200 should be sufficient currently to observe the periodicity.
-    NEIGHBORHOOD_SIZE = 4 # number of words to the left and right to consider as neighbors
+    NEIGHBORHOOD_SIZE = 8 # number of words to the left and right to consider as neighbors
     # Create deltas from -x to x excluding 0
     x = NEIGHBORHOOD_SIZE
     deltas = []
