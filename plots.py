@@ -1,7 +1,7 @@
 # GENERATES All SPECIFIED PLOTS
 # CREATES EMBDEDDING FILE FOR WORDS IF NOT MADE YET
 
-# Stores all output in /plots
+# Stores all output in /results/plots
 # Sset true and false to run specific plots
 # Need to implemnt one more plot
 
@@ -79,7 +79,7 @@ def ensure_consolidated_data(words, window, iterative_dir):
 
 def get_output_params(words):
     prefix = ''.join([w[0].lower() for w in words])
-    path = f"./plots/{prefix}/"
+    path = f"./results/plots/{prefix}/"
     os.makedirs(path, exist_ok=True)
     return path, prefix
 

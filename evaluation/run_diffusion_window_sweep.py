@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Run diffusion (iterative_vectors_v3.py) for windows 2,4,6,8 with ITERATIONS=150;
-evaluate each checkpoint with evaluate_analogies.py; write eval/diffusion_window_sweep_results.csv.
+evaluate each checkpoint with evaluate_analogies.py; write evaluation/diffusion_window_sweep_results.csv.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ DIFFUSION_SCRIPT = os.path.join(ROOT, "iterative_vectors_v3.py")
 EVAL_SCRIPT = os.path.join(ROOT, "evaluation", "evaluate_analogies.py")
 QUESTIONS = os.path.join(ROOT, "evaluation", "analogy_questions.json")
 VEC_DIR = os.path.join(ROOT, "data", "iterative_vectors")
-OUT_CSV = os.path.join(ROOT, "eval", "diffusion_window_sweep_results.csv")
+OUT_CSV = os.path.join(ROOT, "evaluation", "diffusion_window_sweep_results.csv")
 
 
 def run_diffusion(window: int):

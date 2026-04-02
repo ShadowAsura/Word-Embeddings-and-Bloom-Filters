@@ -11,17 +11,17 @@ Explain where these earlier Word2Vec analogy numbers came from and why they diff
 
 ## Files inspected
 
-- `eval/word2vec_window_results.csv`
-- `eval/run_word2vec_eval.py`
+- `evaluation/word2vec_window_results.csv`
+- `evaluation/run_word2vec_eval.py`
 - `evaluation/analogy_questions.json`
 - `results/analogies/paper_analogy_results.csv`
-- `eval/diffusion_window_sweep_results.csv` (as a reference for other historical valid-counts)
+- `evaluation/diffusion_window_sweep_results.csv` (as a reference for other historical valid-counts)
 
 ## Where the earlier numbers came from
 
-They were recorded in **`eval/word2vec_window_results.csv`** (Word2Vec windows 2/4/6/8, 32d) with **`total_valid = 24`**.
+They were recorded in **`evaluation/word2vec_window_results.csv`** (Word2Vec windows 2/4/6/8, 32d) with **`total_valid = 24`**.
 
-That CSV is produced by **`eval/run_word2vec_eval.py`**, which runs:
+That CSV is produced by **`evaluation/run_word2vec_eval.py`**, which runs:
 
 - `python evaluation/evaluate_analogies.py --embeddings data/word2vec/word2vec_vectors_32d_window{W}.json --questions evaluation/analogy_questions.json`
 

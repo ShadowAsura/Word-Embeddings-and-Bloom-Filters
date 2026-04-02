@@ -13,9 +13,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DIFFUSION_CSV = os.path.join(ROOT, "eval", "diffusion_window_sweep_results.csv")
-W2V_CSV = os.path.join(ROOT, "eval", "word2vec_window_results.csv")
-PLOTS_DIR = os.path.join(ROOT, "eval", "plots")
+DIFFUSION_CSV = os.path.join(ROOT, "evaluation", "diffusion_window_sweep_results.csv")
+W2V_CSV = os.path.join(ROOT, "evaluation", "word2vec_window_results.csv")
+PLOTS_DIR = os.path.join(ROOT, "results", "plots")
 WINDOWS = [2, 4, 6, 8]
 
 

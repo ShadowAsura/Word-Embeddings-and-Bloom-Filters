@@ -40,26 +40,26 @@
 **Time:** 0.04 minutes
 **Result:** Best Semantic 33.1% (window 2), Best Syntactic 2.5% (window 4), Best Total 6.5% (window 2)
 
-## Script: eval/train_word2vec_baseline.py (CBOW 200d, window 2)
-**Command:** `python eval/train_word2vec_baseline.py --window 2 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window2.json`
+## Script: evaluation/train_word2vec_baseline.py (CBOW 200d, window 2)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 2 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window2.json`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 27.6%, Syntactic 3.3%, Total 6.8%
 
-## Script: eval/train_word2vec_baseline.py (CBOW 200d, window 4)
-**Command:** `python eval/train_word2vec_baseline.py --window 4 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window4.json`
+## Script: evaluation/train_word2vec_baseline.py (CBOW 200d, window 4)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 4 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window4.json`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 27.9%, Syntactic 3.5%, Total 7.0%
 
-## Script: eval/train_word2vec_baseline.py (CBOW 200d, window 6)
-**Command:** `python eval/train_word2vec_baseline.py --window 6 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window6.json`
+## Script: evaluation/train_word2vec_baseline.py (CBOW 200d, window 6)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 6 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window6.json`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 26.5%, Syntactic 3.7%, Total 7.0%
 
-## Script: eval/train_word2vec_baseline.py (CBOW 200d, window 8)
-**Command:** `python eval/train_word2vec_baseline.py --window 8 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window8.json`
+## Script: evaluation/train_word2vec_baseline.py (CBOW 200d, window 8)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 8 --epochs 50 --negative 5 --dim 200 --sg 0 --out data/word2vec/word2vec_cbow_200d_window8.json`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 22.8%, Syntactic 3.3%, Total 6.1%
@@ -67,26 +67,26 @@
 ## Script: train_rnnlm.py (padding bug fix applied)
 **Fix:** Removed `padding_idx=0` from `nn.Embedding` constructor — index 0 was a real word, not PAD, so its embedding was frozen at zero.
 
-## Script: eval/train_word2vec_baseline.py (200d, window 2)
-**Command:** `python eval/train_word2vec_baseline.py --window 2 --epochs 50 --negative 5 --dim 200`
+## Script: evaluation/train_word2vec_baseline.py (200d, window 2)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 2 --epochs 50 --negative 5 --dim 200`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 10.7%, Syntactic 1.2%, Total 2.6%
 
-## Script: eval/train_word2vec_baseline.py (200d, window 4)
-**Command:** `python eval/train_word2vec_baseline.py --window 4 --epochs 50 --negative 5 --dim 200`
+## Script: evaluation/train_word2vec_baseline.py (200d, window 4)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 4 --epochs 50 --negative 5 --dim 200`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 12.1%, Syntactic 1.4%, Total 2.9%
 
-## Script: eval/train_word2vec_baseline.py (200d, window 6)
-**Command:** `python eval/train_word2vec_baseline.py --window 6 --epochs 50 --negative 5 --dim 200`
+## Script: evaluation/train_word2vec_baseline.py (200d, window 6)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 6 --epochs 50 --negative 5 --dim 200`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 14.0%, Syntactic 1.2%, Total 3.0%
 
-## Script: eval/train_word2vec_baseline.py (200d, window 8)
-**Command:** `python eval/train_word2vec_baseline.py --window 8 --epochs 50 --negative 5 --dim 200`
+## Script: evaluation/train_word2vec_baseline.py (200d, window 8)
+**Command:** `python evaluation/train_word2vec_baseline.py --window 8 --epochs 50 --negative 5 --dim 200`
 **GPU:** NVIDIA GeForce RTX 5060, 8151 MiB (CPU only — gensim)
 **Time:** < 1 minute
 **Result:** Semantic 18.8%, Syntactic 0.9%, Total 3.5%

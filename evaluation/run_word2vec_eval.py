@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Evaluate Word2Vec embeddings (windows 2,4,6,8) with evaluate_analogies.py;
-write eval/word2vec_window_results.csv.
+write evaluation/word2vec_window_results.csv.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS = [2, 4, 6, 8]
 EVAL_SCRIPT = os.path.join(ROOT, "evaluation", "evaluate_analogies.py")
 QUESTIONS = os.path.join(ROOT, "evaluation", "analogy_questions.json")
-OUT_CSV = os.path.join(ROOT, "eval", "word2vec_window_results.csv")
+OUT_CSV = os.path.join(ROOT, "evaluation", "word2vec_window_results.csv")
 
 
 def parse_eval_output(stdout: str):

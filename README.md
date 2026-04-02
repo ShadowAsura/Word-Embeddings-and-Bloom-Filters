@@ -1,84 +1,180 @@
 ## Word Embeddings
 
-This project explores different methods for generating word embeddings.
+This project explores multiple word-embedding pipelines, including diffusion-style
+iterative vectors, Word2Vec baselines, and evaluation/reporting workflows used for
+analogy and nearest-neighbor comparisons.
 
 ### Setup
-1. Ensure Python 3.9 or higher is installed and the python3 alias points to such a version.
-2. Set up a virtualenv.
-```bash
-pip install virtualenv
-python3 -m virtualenv .venv
-source .venv/bin/activate
-```
-3. And install the required packages.
-```
+1. Ensure Python 3.10 or higher is installed.
+2. Create and activate a virtual environment.
+
+Windows PowerShell:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+macOS/Linux:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Important Git LFS note
+
+Some large JSON artifacts are stored through Git LFS. If LFS objects are not pulled,
+files may contain pointer text instead of real JSON and scripts can fail with
+`JSONDecodeError`.
+
+```bash
+git lfs install
+git lfs pull
+```
+
 ### Structure
 
-- `data/`: all files generated or used for data generation.
-    - `fairy_tales/`: *(NOT COMMITTED)* binary .txt files for corpus
-    - `text8/`: *(NOT COMMITTED)* optional text8 corpus (large raw text)
-    - `indiv_word_representations/`: *(NOT COMMITTED)* generated using various representation methods, the vector for each instances of KQMW in the corpus. Generated in `indiv_word_representations.ipynb`.
-    - `iterative_vectors/`: *(NOT COMMITTED)* stores vector representations across iterations, generated via `iterative_vectors.py`.
-    - `kqmw_iterations/`: *(NOT COMMITTED)* measures how representations for KQMW generated using the iterative vectors method changes across many iterations. Generated in `iteration_data.ipynb`.
-    - `fairytales_doc_tf-idf.json`: document-based TF-IDFs. Generated in `generate_tf-idfs_docuemnts.ipynb`. Not used.
-    - `fairytales_tokenized.json`: tokenized + lemmatized corpus. Generated in `generate_tf-idfs_words.ipynb`.
-    - `fairytales_word_bloom-filters.json`: *(NOT COMMITTED)* Bloom filter for words in corpus, generated in `generate_bloom_filters.ipynb`.
-    - `kqmw_iteration.json`: *(NOT COMMITTED)* Generated in `iteration_data.ipynb` to consolidate representations of KQMW across iterations for use in PCA plots.
-    - `n_neighbors.json`: *(NOT COMMITTED)* Helper file for use in `generate_tf-idfs_words.ipynb`.
-    - `neighbor_frequencies.json`: *(NOT COMMITTED)* Helper file for use in `generate_tf-idfs_words.ipynb`.
-    - `sentence_examples/`: examples of tokenized lemmatized sentences containing KQMW.
-- `evaluation/`: evaluation scripts and question sets.
-    - `analogy_questions_fairytales_clean.json`: cleaned semantic + syntactic analogy benchmark used for current diffusion vs Word2Vec comparisons.
-- `eval/`: files from https://github.com/stanfordnlp/GloVe for analogies tests.
-- `pca/`: directory for saving generated PCA plots. 
-- `generate_bloom_filters.ipynb`: generates bloom filters for each word in the corpus.
-- `generate_tf-idfs_documents.ipynb`: generates tf-idfs using the documents method, not used.
-- `generate_tf-idfs_words.ipynb`: generates tf-idfs using the words method.
-- `indiv_word_representations.ipynb`: given final representations for words in corpus, generates instance representations for specific words for further analysis.
-- `iteration_data.ipynb`: generates data for analyzing representations across iterations generated via `iterative_vectors.py`.
-- `pca_plots.ipynb`: generates PCA plots.
-- `iterative_vectors.py`: generates vector representations using the iterative method.
-- `results/analogies/`: committed CSV + Markdown outputs summarizing analogy evaluations (paper-style comparison table, benchmark cleanup notes, etc.).
+Status legend:
+- `(COMMITTED)`: tracked in git history.
+- `(NOT COMMITTED)`: local/generated/ignored files and folders.
+- `(MIXED)`: contains both committed reference artifacts and local generated output.
 
-### Full workflow (training → 10.7% analogy)
+- `README.md` `(COMMITTED)`: main project documentation.
+- `requirements.txt` `(COMMITTED)`: Python dependency list.
+- `.gitignore` `(COMMITTED)`: ignore policy for generated data/results artifacts.
 
-End-to-end order to build data, train, and evaluate to the reported ~10.7% total analogy accuracy (e.g. window 6 or 8 at iter 25).
+- `fairy_tales/` `(COMMITTED)`: large numbered text corpus files used by the
+  fairy-tale workflows.
+
+- `data/` `(NOT COMMITTED)`: main generated-data workspace (ignored by default).
+  - `data/text8/` `(NOT COMMITTED)`: optional text8 corpus assets.
+  - `data/iterative_vectors/` `(NOT COMMITTED)`: diffusion checkpoints such as
+    `window_4_iter_25_v3_32bit.json`.
+  - `data/iterative_vectors_text8/` `(NOT COMMITTED)`: text8-specific iterative vectors.
+  - `data/indiv_word_representations/` `(NOT COMMITTED)`: per-instance word vectors.
+  - `data/word2vec/` `(NOT COMMITTED)`: Word2Vec exports/checkpoints.
+  - `data/nnlm/` and `data/rnnlm/` `(NOT COMMITTED)`: language-model artifacts.
+  - `data/text8_tokenized.json`, `data/text8_word_tf-idfs.json`,
+    `data/text8_word_bloom-filters.json` `(NOT COMMITTED)`: generated tokenization,
+    TF-IDF, and Bloom-filter data files.
+
+- `evaluation/` `(MIXED)`: canonical active evaluation scripts and benchmark inputs.
+  - `(COMMITTED)` benchmark/question assets:
+    `evaluation/analogy_questions*.json`, `evaluation/questions-words.txt`.
+  - `(COMMITTED)` active scripts:
+    `evaluation/evaluate_analogies.py`, `evaluation/evaluate_google_analogies.py`,
+    `evaluation/run_window_sweep.py`, `evaluation/run_alpha_sweep.py`,
+    `evaluation/run_paper_eval.py`, `evaluation/plot_comparisons.py`,
+    `evaluation/make_paper_table.py`, `evaluation/nearest_neighbors.py`,
+    `evaluation/train_word2vec_baseline.py`, `evaluation/run_word2vec_eval.py`,
+    `evaluation/run_diffusion_window_sweep.py`, and stability utilities.
+  - `(NOT COMMITTED)` most newly generated `*.csv`, `*.txt`, and `*.png` run outputs.
+
+- `results/` `(MIXED)`: canonical reporting/output area.
+  - `results/plots/` `(MIXED)`: canonical location for generated plots and
+    comparison figures.
+  - `results/analogies/` `(COMMITTED)`: committed comparison scripts/tables/notes
+    used for paper-style reporting.
+  - `results/baselines/`, `results/logs/`, `results/stability/` `(NOT COMMITTED)`:
+    local experiment outputs.
+
+- `archive/legacy/` `(NOT COMMITTED)`: local archive for retired paths and plot outputs.
+  - `archive/legacy/eval/` `(NOT COMMITTED)`: legacy evaluation scripts/notebooks.
+  - `archive/legacy/plot_outputs/` `(NOT COMMITTED)`: migrated historical plots
+    from older top-level output directories.
+
+- `eval/` `(NOT PRESENT)`: retired top-level legacy evaluation path.
+- `pca/` `(NOT PRESENT)`: retired top-level PCA output path.
+
+- Top-level notebooks/scripts `(COMMITTED)`: exploratory generation and visualization
+  notebooks plus training entry points, for example:
+  - `generate_tf-idfs_words.ipynb`, `generate_tf-idfs_documents.ipynb`,
+    `generate_bloom_filters.ipynb`, `indiv_word_representations.ipynb`,
+    `iteration_data.ipynb`, `pca_plots.ipynb`, `pca_plots3D.ipynb`, `umap.ipynb`.
+  - `iterative_vectors_v3.py`, `iterative_vectors.py`, `iterative_vectors8N.py`,
+    `compare_vectors.py`, `plots.py`, `tokenize_text8.py`, `train_nnlm.py`,
+    `train_rnnlm.py`.
+
+### Full workflow (training to ~10.7% analogy)
+
+End-to-end order to train and evaluate diffusion checkpoints that historically
+reached around 10.7% total analogy accuracy (for example window 6 or 8 at iter 25).
 
 **1. Corpus and tokenization**
 
-- Put raw corpus text in `data/fairy_tales/` (e.g. `1.txt`, `2.txt`, …).
-- In **`generate_tf-idfs_words.ipynb`**: build the tokenized corpus (and any helper files like `n_neighbors.json`, `neighbor_frequencies.json` if that notebook expects them), then save:
-  - `data/fairytales_tokenized.json` (list of tokenized sentences).
+- Put corpus files under `fairy_tales/` (or use `data/text8/` for text8 workflows).
+- Build tokenized data in `generate_tf-idfs_words.ipynb`, then write the tokenized
+  JSON used by downstream steps.
 
 **2. Word TF-IDF**
 
-- In **`generate_tf-idfs_words.ipynb`**: compute word–word TF-IDFs from the tokenized corpus and save:
-  - `data/fairytales_word_tf-idfs.json`.
+- In `generate_tf-idfs_words.ipynb`, compute word-based TF-IDFs and save the
+  resulting JSON file in `data/`.
 
 **3. Bloom filters**
 
-- Run **`generate_bloom_filters.ipynb`**: reads `data/fairytales_tokenized.json`, writes:
-  - `data/fairytales_word_bloom-filters.json`.
+- Run `generate_bloom_filters.ipynb` to build word Bloom filters from tokenized data.
 
 **4. Initial vectors (iteration 0)**
 
-- **`data/iterative_vectors/0.json`** must exist before training. It is a JSON `{ "word": [float, ...], ... }` with the same vocabulary as your TF-IDF/bloom data and one vector per word (e.g. from bloom filters or a prior run). Create it once (e.g. export bloom filters into this format into `data/iterative_vectors/0.json`) so the vocab and keys match the rest of the pipeline.
+- Ensure an iteration-0 embedding JSON exists under `data/iterative_vectors/` with
+  vocabulary aligned to your TF-IDF/Bloom inputs.
 
-**5. Training (GPU)**
+**5. Training (diffusion)**
 
-- From repo root:
-  - Single run:  
-    `NEIGHBORHOOD_SIZE=4 ALPHA=0.1 USE_ROBUST_SCALING=0 ITERATIONS=50 python iterative_vectors_v3.py`  
-    Checkpoints are saved as `data/iterative_vectors/window_4_iter_1_v3_32bit.json`, …, `window_4_iter_50_v3_32bit.json`.
-  - Or run the **window sweep** (windows 2, 4, 6, 8; ALPHA=0.1, USE_ROBUST_SCALING=0, 50 iters):  
-    `python evaluation/run_window_sweep.py`  
-    This trains each window, then evaluates checkpoints 1, 5, 10, 25, 50 and writes `evaluation/window_sweep_results.csv` and `evaluation/window_sweep_summary.txt`.
+- Single run example (PowerShell):
+
+```powershell
+$env:NEIGHBORHOOD_SIZE=4
+$env:ALPHA=0.1
+$env:USE_ROBUST_SCALING=0
+$env:ITERATIONS=50
+python iterative_vectors_v3.py
+```
+
+- Or run a multi-window sweep:
+
+```bash
+python evaluation/run_window_sweep.py
+```
+
+This writes sweep summaries such as `evaluation/window_sweep_results.csv` and
+`evaluation/window_sweep_summary.txt`.
 
 **6. Analogy evaluation**
 
-- On a single checkpoint:  
-  `python evaluation/evaluate_analogies.py --embeddings data/iterative_vectors/window_6_iter_25_v3_32bit.json`  
-  You’ll see Semantic %, Syntactic %, and **Total %** (e.g. 10.7% for window 6 or 8 at iter 25).
-- The **10.7%** number comes from this evaluator run on those checkpoints (produced by `iterative_vectors_v3.py`); it is not computed inside the training script.
+- Evaluate one checkpoint with:
+
+```bash
+python evaluation/evaluate_analogies.py --embeddings data/iterative_vectors/window_6_iter_25_v3_32bit.json
+```
+
+- Run Google analogies format with:
+
+```bash
+python evaluation/evaluate_google_analogies.py \
+  --embeddings data/iterative_vectors/window_4_iter_1_v3_32bit.json \
+  --questions evaluation/questions-words.txt
+```
+
+### Common commands
+
+Run from repository root.
+
+```bash
+# Diffusion sweep + evaluation CSV
+python evaluation/run_diffusion_window_sweep.py
+
+# Word2Vec evaluation CSV
+python evaluation/run_word2vec_eval.py
+
+# Comparison plots from evaluation CSVs
+python evaluation/plot_comparisons.py
+
+# Paper table + paper figures
+python evaluation/make_paper_table.py --diffusion-csv evaluation/diffusion_window_sweep_results.csv
+
+# Nearest-neighbor comparison report
+python evaluation/nearest_neighbors.py
+```
