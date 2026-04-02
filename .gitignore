@@ -12,9 +12,7 @@ __pycache__/
 data/fairy_tales
 data/iterative_vectors_dropped_tf-idfs/
 
-
-data/iterative_vectors*
-
+data/iterative_vectors_original
 
 # Debug / diagnostic artifacts (research baseline: no forensics in tree)
 debug/
