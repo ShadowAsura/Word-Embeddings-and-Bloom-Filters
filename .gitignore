@@ -11,8 +11,27 @@ __pycache__/
 # Old / alternate data (not used for main runs)
 data/fairy_tales
 data/iterative_vectors_dropped_tf-idfs/
-
 data/iterative_vectors_original
+
+# Large generated data (too big for git)
+data/iterative_vectors/
+data/iterative_vectors_text8/
+data/word2vec/
+data/text8
+data/text8_*.json
+data/nnlm/
+data/rnnlm/
+data/kqmw_iteration.json
+
+# Generated evaluation outputs
+evaluation/questions-words.txt
+evaluation/*_stability.csv
+evaluation/*_stability.png
+evaluation/stability*.csv
+evaluation/stability*.png
+
+# Generated results
+results/
 
 # Debug / diagnostic artifacts (research baseline: no forensics in tree)
 debug/
