@@ -12,6 +12,7 @@ __pycache__/
 data/*
 data/text8/*
 data/iterative_vectors*
+data/*.json
 
 # Generated results
 results/
@@ -28,3 +29,8 @@ debug/
 # Misc
 notes.txt
 .claude/
+*.vbs
+
+# Discord bot local secrets
+tools/discord_bot/.env
+tools/*

@@ -22,12 +22,32 @@ import numpy as np
 
 
 def load_embeddings(path: Path) -> Tuple[np.ndarray, Dict[str, int]]:
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+    with path.open("r", encoding="utf-8", errors="replace") as f:
+        raw = f.read()
+
+    stripped = raw.lstrip("\ufeff\t\r\n ")
+    if not stripped:
+        raise ValueError(f"Embeddings file is empty: {path}")
+    if stripped.startswith("version https://git-lfs.github.com/spec/v1"):
+        raise ValueError(
+            "Embeddings file is a Git LFS pointer, not actual JSON vectors. "
+            "Run `git lfs pull` or regenerate the embeddings file."
+        )
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid embeddings JSON in {path}: {exc}") from exc
+
+    if not isinstance(data, dict) or not data:
+        raise ValueError(f"Embeddings JSON must be a non-empty object: {path}")
 
     vocab = list(data.keys())
     word_to_idx = {w: i for i, w in enumerate(vocab)}
-    mat = np.asarray([data[w] for w in vocab], dtype=np.float32)
+    try:
+        mat = np.asarray([data[w] for w in vocab], dtype=np.float32)
+    except Exception as exc:
+        raise ValueError(f"Embeddings contain non-numeric vectors in {path}: {exc}") from exc
 
     norms = np.linalg.norm(mat, axis=1, keepdims=True)
     norms[norms == 0.0] = 1.0
@@ -115,8 +135,11 @@ def main() -> None:
     if not q_path.is_file():
         raise FileNotFoundError(f"Questions file not found: {q_path}")
 
-    vectors, word_to_idx = load_embeddings(emb_path)
-    grouped = load_google_questions(q_path)
+    try:
+        vectors, word_to_idx = load_embeddings(emb_path)
+        grouped = load_google_questions(q_path)
+    except ValueError as exc:
+        raise SystemExit(f"Input error: {exc}") from exc
 
     sem_valid, sem_total, sem_correct = evaluate_category(vectors, word_to_idx, grouped["semantic"])
     syn_valid, syn_total, syn_correct = evaluate_category(vectors, word_to_idx, grouped["syntactic"])
